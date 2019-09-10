@@ -15,11 +15,17 @@
  */
 package com.google.gwt.user.client.ui;
 
+import com.google.gwt.aria.client.Id;
+import com.google.gwt.aria.client.Roles;
+import com.google.gwt.aria.client.SelectedValue;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
+import com.google.gwt.event.dom.client.KeyCodes;
+import com.google.gwt.event.dom.client.KeyDownEvent;
+import com.google.gwt.event.dom.client.KeyDownHandler;
 import com.google.gwt.event.logical.shared.BeforeSelectionEvent;
 import com.google.gwt.event.logical.shared.BeforeSelectionHandler;
 import com.google.gwt.event.logical.shared.HasBeforeSelectionHandlers;
@@ -33,6 +39,7 @@ import com.google.gwt.resources.client.CommonResources;
 import com.google.gwt.safehtml.shared.SafeHtml;
 import com.google.gwt.safehtml.shared.annotations.IsSafeHtml;
 import com.google.gwt.safehtml.shared.annotations.SuppressIsSafeHtmlCastCheck;
+import com.google.gwt.user.client.DOM;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -104,19 +111,28 @@ public class TabLayoutPanel extends ResizeComposite implements HasWidgets,
     private Element inner;
     private boolean replacingWidget;
 
-    public Tab(Widget child) {
+    public Tab(Widget child, Widget controls) {
       super(Document.get().createDivElement());
       getElement().appendChild(inner = Document.get().createDivElement());
 
       setWidget(child);
       setStyleName(TAB_STYLE);
       inner.setClassName(TAB_INNER_STYLE);
-
+      Roles.getTabRole().set(getElement());
+      String controlsId = DOM.ensureHasId(controls.getElement());
+      Roles.getTabRole().setAriaControlsProperty(getElement(), Id.of(controlsId));
+      Roles.getTabRole().setAriaSelectedState(getElement(), SelectedValue.FALSE);
+      getElement().setTabIndex(-1);
       getElement().addClassName(CommonResources.getInlineBlockStyle());
     }
 
     public HandlerRegistration addClickHandler(ClickHandler handler) {
       return addDomHandler(handler, ClickEvent.getType());
+    }
+
+    public HandlerRegistration addKeyDownHandler(KeyDownHandler handler)
+    {
+      return addDomHandler(handler, KeyDownEvent.getType());
     }
 
     @Override
@@ -141,8 +157,12 @@ public class TabLayoutPanel extends ResizeComposite implements HasWidgets,
     public void setSelected(boolean selected) {
       if (selected) {
         addStyleDependentName("selected");
+        Roles.getTabRole().setAriaSelectedState(getElement(), SelectedValue.TRUE);
+        getElement().setTabIndex(0);
       } else {
         removeStyleDependentName("selected");
+        Roles.getTabRole().setAriaSelectedState(getElement(), SelectedValue.FALSE);
+        getElement().setTabIndex(-1);
       }
     }
 
@@ -156,6 +176,10 @@ public class TabLayoutPanel extends ResizeComposite implements HasWidgets,
     @Override
     protected com.google.gwt.user.client.Element getContainerElement() {
       return inner.cast();
+    }
+
+    public void setFocus() {
+      getElement().focus();
     }
   }
 
@@ -228,8 +252,9 @@ public class TabLayoutPanel extends ResizeComposite implements HasWidgets,
    *
    * @param barHeight the size of the tab bar
    * @param barUnit the unit in which the tab bar size is specified
+   * @param tabListLabel aria-label for the tablist
    */
-  public TabLayoutPanel(double barHeight, Unit barUnit) {
+  public TabLayoutPanel(double barHeight, Unit barUnit, String tabListLabel) {
     LayoutPanel panel = new LayoutPanel();
     initWidget(panel);
 
@@ -250,6 +275,8 @@ public class TabLayoutPanel extends ResizeComposite implements HasWidgets,
     tabBar.getElement().getStyle().setWidth(BIG_ENOUGH_TO_NOT_WRAP, Unit.PX);
 
     tabBar.setStyleName("gwt-TabLayoutPanelTabs");
+    Roles.getTablistRole().set(tabBar.getElement());
+    Roles.getTablistRole().setAriaLabelProperty(tabBar.getElement(), tabListLabel);
     setStyleName("gwt-TabLayoutPanel");
   }
 
@@ -408,6 +435,21 @@ public class TabLayoutPanel extends ResizeComposite implements HasWidgets,
   }
 
   /**
+   * Set elementId on Tab owning given widget
+   * @param child
+   * @param id
+   */
+  public void setTabId(Widget child, String id)
+  {
+    checkChild(child);
+    Tab tab = tabs.get(getWidgetIndex(child));
+    if (tab != null)
+    {
+      tab.getElement().setId(id);
+    }
+  }
+
+  /**
    * Returns the widget at the given index.
    */
   public Widget getWidget(int index) {
@@ -527,7 +569,7 @@ public class TabLayoutPanel extends ResizeComposite implements HasWidgets,
    * @param beforeIndex the index before which it will be inserted
    */
   public void insert(Widget child, Widget tab, int beforeIndex) {
-    insert(child, new Tab(tab), beforeIndex);
+    insert(child, new Tab(tab, child), beforeIndex);
   }
 
   /**
@@ -745,7 +787,26 @@ public class TabLayoutPanel extends ResizeComposite implements HasWidgets,
         selectTab(child);
       }
     });
-
+    tab.addKeyDownHandler(new KeyDownHandler() {
+      public void onKeyDown(KeyDownEvent event)
+      {
+        switch (event.getNativeKeyCode())
+        {
+        case KeyCodes.KEY_LEFT:
+          selectPreviousTab();
+          break;
+        case KeyCodes.KEY_RIGHT:
+          selectNextTab();
+          break;
+        case KeyCodes.KEY_HOME:
+          selectFirstTab();
+          break;
+        case KeyCodes.KEY_END:
+          selectLastTab();
+          break;
+        }
+      }
+    });
     child.addStyleName(CONTENT_STYLE);
 
     if (selectedIndex == -1) {
@@ -755,5 +816,47 @@ public class TabLayoutPanel extends ResizeComposite implements HasWidgets,
       // increased.
       selectedIndex++;
     }
+  }
+
+  private void selectNextTab() {
+    if (selectedIndex == -1)
+      return;
+    if (selectedIndex == getWidgetCount() - 1) {
+      selectFirstTab();
+      return;
+    }
+    selectTab(selectedIndex + 1);
+    focusCurrentTab();
+  }
+
+  private void selectPreviousTab() {
+    if (selectedIndex == -1)
+      return;
+    if (selectedIndex == 0) {
+      selectLastTab();
+      return;
+    }
+    selectTab(selectedIndex - 1);
+    focusCurrentTab();
+  }
+
+  private void selectFirstTab() {
+    if (getWidgetCount() == 0)
+      return;
+    selectTab(0);
+    focusCurrentTab();
+  }
+
+  private void selectLastTab() {
+    if (getWidgetCount() == 0)
+      return;
+    selectTab(getWidgetCount() - 1);
+    focusCurrentTab();
+  }
+
+  private void focusCurrentTab() {
+    if (selectedIndex == -1)
+      return;
+    tabs.get(selectedIndex).setFocus();
   }
 }

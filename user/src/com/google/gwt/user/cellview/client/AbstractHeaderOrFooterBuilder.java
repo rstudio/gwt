@@ -430,16 +430,29 @@ public abstract class AbstractHeaderOrFooterBuilder<T> implements HeaderBuilder<
       if (sortAscIconHtml == null) {
         AbstractImagePrototype proto =
             AbstractImagePrototype.create(table.getResources().sortAscending());
-        sortAscIconHtml = SafeHtmlUtils.fromTrustedString(proto.getHTML());
+        sortAscIconHtml = addAltText(SafeHtmlUtils.fromTrustedString(proto.getHTML()), "Ascending sort");
       }
       return sortAscIconHtml;
     } else {
       if (sortDescIconHtml == null) {
         AbstractImagePrototype proto =
             AbstractImagePrototype.create(table.getResources().sortDescending());
-        sortDescIconHtml = SafeHtmlUtils.fromTrustedString(proto.getHTML());
+        sortDescIconHtml = addAltText(SafeHtmlUtils.fromTrustedString(proto.getHTML()), "Descending sort");
       }
       return sortDescIconHtml;
     }
+  }
+
+  private static SafeHtml addAltText(SafeHtml html, String altText)
+  {
+    String orig = html.asString();
+    if (!orig.startsWith("<img" ) && !orig.endsWith(">"))
+      return html;
+
+    String newStr = orig.substring(0, orig.length() - 1) + 
+          "alt=\"" + 
+          SafeHtmlUtils.htmlEscape(altText) + 
+          "\">";
+    return SafeHtmlUtils.fromTrustedString(newStr);
   }
 }

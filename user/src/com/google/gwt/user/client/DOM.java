@@ -418,6 +418,23 @@ public class DOM {
   }
 
   /**
+   * If an element doesn't already have an id, assign one
+   *
+   * @param ele element to operate on
+   * @return id of the element
+   */
+  public static String ensureHasId(Element ele)
+  {
+    String controlId = ele.getId();
+    if (controlId == null || controlId.length() == 0)
+    {
+      controlId = DOM.createUniqueId();
+      ele.setId(controlId);
+    }
+    return controlId;
+  }
+
+  /**
    * Cancels bubbling for the given event. This will stop the event from being
    * propagated to parent elements.
    * 

@@ -83,6 +83,7 @@ public class RadioButton extends CheckBox {
     sinkEvents(Event.ONMOUSEUP);
     sinkEvents(Event.ONBLUR);
     sinkEvents(Event.ONKEYDOWN);
+    sinkEvents(Event.ONFOCUS);
   }
 
   /**
@@ -205,6 +206,7 @@ public class RadioButton extends CheckBox {
       case Event.ONMOUSEUP:
       case Event.ONBLUR:
       case Event.ONKEYDOWN:
+      case Event.ONFOCUS:
         // Note the old value for onValueChange purposes (in ONCLICK case)
         oldValue = getValue();
         break;

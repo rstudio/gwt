@@ -16,6 +16,7 @@
 package com.google.gwt.user.client.ui;
 
 import com.google.gwt.aria.client.Id;
+import com.google.gwt.aria.client.MenuitemRole;
 import com.google.gwt.aria.client.Roles;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.Scheduler;
@@ -302,6 +303,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
   private MenuPopup popup;
   private MenuItem selectedItem;
   private MenuBar shownChildMenu;
+  private MenuItem expandedMenuItem;
   private boolean vertical, autoOpen;
   private boolean focusOnHover = true;
 
@@ -392,7 +394,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
    * @return the {@link MenuItem} object created
    */
   public MenuItem addItem(SafeHtml html, ScheduledCommand cmd) {
-    return addItem(new MenuItem(html, cmd));
+    return addItem(new MenuItem(html, Roles.getMenuitemRole(), false, cmd));
   }
 
   /**
@@ -405,7 +407,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
    * @return the {@link MenuItem} object created
    */
   public MenuItem addItem(@IsSafeHtml String text, boolean asHTML, ScheduledCommand cmd) {
-    return addItem(new MenuItem(text, asHTML, cmd));
+    return addItem(new MenuItem(text, asHTML, Roles.getMenuitemRole(), false, cmd));
   }
 
   /**
@@ -442,7 +444,50 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
    * @return the {@link MenuItem} object created
    */
   public MenuItem addItem(String text, ScheduledCommand cmd) {
-    return addItem(new MenuItem(text, cmd));
+    return addItem(new MenuItem(text, Roles.getMenuitemRole(), false, cmd));
+  }
+
+  /**
+   * Adds a menu item to the bar, that will fire the given command when it is
+   * selected.
+   *
+   * @param text the item's text
+   * @param role the item's a11y role
+   * @param checked <code>true</code> if item is checked
+   * @param cmd the command to be fired
+   * @return the {@link MenuItem} object created
+   */
+  public MenuItem addItem(String text, MenuitemRole role, boolean checked, ScheduledCommand cmd) {
+    return addItem(new MenuItem(text, role, checked, cmd));
+  }
+
+  /**
+   * Adds a menu item to the bar, that will fire the given command when it is
+   * selected.
+   *
+   * @param text the item's text
+   * @param asHTML <code>true</code> to treat the specified text as html
+   * @param role the item's a11y role
+   * @param checked <code>true</code> if item is checked
+   * @param cmd the command to be fired
+   * @return the {@link MenuItem} object created
+   */
+  public MenuItem addItem(@IsSafeHtml String text, boolean asHTML, MenuitemRole role, boolean checked, ScheduledCommand cmd) {
+    return addItem(new MenuItem(text, asHTML, role, checked, cmd));
+  }
+
+ /**
+   * Adds a menu item to the bar containing SafeHtml, that will fire the given
+   * command when it is selected.
+   *
+   * @param html the item's html text
+   * @param role the item's a11y role
+   * @param checked <code>true</code> if item is checked
+   * @param cmd the command to be fired
+   * @return the {@link MenuItem} object created
+   */
+  public MenuItem addItem(SafeHtml html, MenuitemRole role, boolean checked, ScheduledCommand cmd) {
+    return addItem(new MenuItem(html, role, checked, cmd));
   }
 
   /**
@@ -513,6 +558,11 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
   public void closeAllChildren(boolean focus) {
     if (shownChildMenu != null) {
       // Hide any open submenus of this item
+      if (expandedMenuItem != null)
+      {
+        expandedMenuItem.setAriaExpanded(false);
+        expandedMenuItem = null;
+      }
       shownChildMenu.onHide(focus);
       shownChildMenu = null;
       selectItem(null);
@@ -785,7 +835,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
       closeAllParents();
     }
 
-    onHide(!autoClosed && focusOnHover);
+    onHide(!autoClosed);
     CloseEvent.fire(MenuBar.this, sender);
     // When the menu popup closes, remember that no item is
     // currently showing a popup menu.
@@ -858,6 +908,13 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
         if (DOM.getChildCount(tr) == 2) {
           Element td = DOM.getChild(tr, 1);
           setStyleName(td, "subMenuIcon-selected", true);
+        }
+
+        if (shownChildMenu != null
+            && shownChildMenu == selectedItem.getSubMenu())
+        {
+          hideChildMenu(false);
+          shownChildMenu = null;
         }
       }
 
@@ -977,7 +1034,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
    * <code>true</code> if the item's command should be fired, <code>false</code>
    * otherwise.
    */
-  void doItemAction(final MenuItem item, boolean fireCommand, boolean focus) {
+  protected void doItemAction(final MenuItem item, boolean fireCommand, boolean focus) {
     // Should not perform any action if the item is disabled
     if (!item.isEnabled()) {
       return;
@@ -1006,8 +1063,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
 
       // hide any open submenus of this item
       if (shownChildMenu != null) {
-        shownChildMenu.onHide(focus);
-        popup.hide();
+        hideChildMenu(focus);
         shownChildMenu = null;
         selectItem(null);
       }
@@ -1017,20 +1073,17 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
         openPopup(item);
       } else if (item.getSubMenu() != shownChildMenu) {
         // close the other submenu and open this one
-        shownChildMenu.onHide(focus);
-        popup.hide();
+        hideChildMenu(focus);
         openPopup(item);
       } else if (fireCommand && !autoOpen) {
         // close this submenu
-        shownChildMenu.onHide(focus);
-        popup.hide();
+        hideChildMenu(focus);
         shownChildMenu = null;
         selectItem(item);
       }
     } else if (autoOpen && shownChildMenu != null) {
       // close submenu
-      shownChildMenu.onHide(focus);
-      popup.hide();
+      hideChildMenu(focus);
       shownChildMenu = null;
     }
   }
@@ -1089,7 +1142,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
    *
    * @param item the item with or without a submenu
    */
-  void updateSubmenuIcon(MenuItem item) {
+  protected void updateSubmenuIcon(MenuItem item) {
     // The submenu icon only applies to vertical menus
     if (!vertical) {
       return;
@@ -1105,7 +1158,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
     Element tr = DOM.getChild(container, idx);
     int tdCount = DOM.getChildCount(tr);
     MenuBar submenu = item.getSubMenu();
-    if (submenu == null) {
+    if (submenu == null || !item.isVisible()) {
       // Remove the submenu indicator
       if (tdCount == 2) {
         tr.removeChild(DOM.getChild(tr, 1));
@@ -1116,7 +1169,12 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
       setItemColSpan(item, 1);
       Element td = DOM.createTD();
       td.setPropertyString("vAlign", "middle");
-      td.setInnerSafeHtml(subMenuIcon.getSafeHtml());
+      String indicatorHtml = subMenuIcon.getSafeHtml().asString();
+      // add null alt attribute for a11y
+      if (indicatorHtml.startsWith("<img") && indicatorHtml.endsWith(">"))
+        indicatorHtml = indicatorHtml.substring(0, indicatorHtml.length() - 1) + " alt>";
+      td.setInnerHTML(indicatorHtml);
+
       setStyleName(td, "subMenuIcon");
       DOM.appendChild(tr, td);
     }
@@ -1195,6 +1253,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
     setElement(outer);
 
     Roles.getMenubarRole().set(getElement());
+    Roles.getPresentationRole().set(table);
 
     sinkEvents(Event.ONCLICK | Event.ONMOUSEOVER | Event.ONMOUSEOUT
         | Event.ONFOCUS | Event.ONKEYDOWN);
@@ -1270,8 +1329,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
    */
   private void onHide(boolean focus) {
     if (shownChildMenu != null) {
-      shownChildMenu.onHide(focus);
-      popup.hide();
+      hideChildMenu(focus);
       if (focus) {
         focus();
       }
@@ -1287,6 +1345,8 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
     shownChildMenu = item.getSubMenu();
     shownChildMenu.selectItem(null);
     shownChildMenu.parentMenu = this;
+    expandedMenuItem = item;
+    item.setAriaExpanded(true);
 
     popup = new MenuPopup();
     popup.setWidget(shownChildMenu);
@@ -1331,9 +1391,15 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
   private boolean selectFirstItemIfNoneSelected() {
     if (selectedItem == null) {
       for (MenuItem nextItem : items) {
-        if (nextItem.isEnabled()) {
+        if (nextItem.isEnabled() && nextItem.isVisible()) {
           selectItem(nextItem);
-          break;
+          return true;
+        }
+      }
+      for (MenuItem nextItem : items) {
+        if (nextItem.isVisible()) {
+          selectItem(nextItem);
+          return true;
         }
       }
       return true;
@@ -1366,7 +1432,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
         break;
       } else {
         itemToBeSelected = items.get(index);
-        if (itemToBeSelected.isEnabled()) {
+        if (itemToBeSelected.isEnabled() && itemToBeSelected.isVisible()) {
           break;
         }
       }
@@ -1403,7 +1469,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
         break;
       } else {
         itemToBeSelected = items.get(index);
-        if (itemToBeSelected.isEnabled()) {
+        if (itemToBeSelected.isEnabled() && itemToBeSelected.isVisible()) {
           break;
         }
       }
@@ -1423,5 +1489,20 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
    */
   private void setItemColSpan(UIObject item, int colspan) {
     item.getElement().setPropertyInt("colSpan", colspan);
+  }
+
+  /**
+   * Hide currently displayed child menu and mark the associate menu item as closed.
+   * @param focus
+   */
+  private void hideChildMenu(boolean focus)
+  {
+    if (expandedMenuItem != null)
+    {
+      expandedMenuItem.setAriaExpanded(false);
+      expandedMenuItem = null;
+    }
+    shownChildMenu.onHide(focus);
+    popup.hide();
   }
 }

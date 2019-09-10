@@ -4,3 +4,6 @@
 
 # Working folder of ant build script
 /build/
+
+# RStudio-specific below here
+/.idea

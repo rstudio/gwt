@@ -15,6 +15,7 @@
  */
 package com.google.gwt.user.client.ui;
 
+import com.google.gwt.aria.client.Roles;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.user.client.DOM;
 import com.google.gwt.user.client.ui.HasHorizontalAlignment.HorizontalAlignmentConstant;
@@ -75,6 +76,7 @@ public abstract class CellPanel extends ComplexPanel {
     body = DOM.createTBody();
     DOM.appendChild(table, body);
     setElement(table);
+    Roles.getPresentationRole().set(getTable());
   }
 
   /**

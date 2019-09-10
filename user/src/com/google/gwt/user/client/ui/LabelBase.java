@@ -53,6 +53,20 @@ public class LabelBase<T> extends Widget implements HasWordWrap,
         : Document.get().createDivElement(), inline);
   }
 
+  /**
+   * Create a Label using a <code>label</code> element.
+   * @param inline
+   * @param forId
+   */
+  protected LabelBase(boolean inline, String forId) {
+    setElement(Document.get().createLabelElement());
+    if (!inline)
+      getElement().getStyle().setProperty("display", "block");
+    if (forId != null && forId.length() > 0)
+      getElement().setAttribute("for", forId);
+    directionalTextHelper = new DirectionalTextHelper(getElement(), inline);
+  }
+
   protected LabelBase(Element element) {
     this(element, "span".equalsIgnoreCase(element.getTagName()));
   }
