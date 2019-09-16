@@ -36,7 +36,6 @@ function setupInstallLocation() {
     + ' top: -1000px;';
   scriptFrame.tabIndex = -1;
   scriptFrame.setAttribute('aria-hidden', 'true');
-  scriptFrame.title = 'Intentionally blank';
   $doc.body.appendChild(scriptFrame);
 
   frameDoc = scriptFrame.contentWindow.document;
