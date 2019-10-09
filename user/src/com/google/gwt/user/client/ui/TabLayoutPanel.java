@@ -252,6 +252,16 @@ public class TabLayoutPanel extends ResizeComposite implements HasWidgets,
    *
    * @param barHeight the size of the tab bar
    * @param barUnit the unit in which the tab bar size is specified
+   */
+  public TabLayoutPanel(double barHeight, Unit barUnit) {
+    this(barHeight, barUnit, null);
+  }
+
+  /**
+   * Creates an empty tab panel.
+   *
+   * @param barHeight the size of the tab bar
+   * @param barUnit the unit in which the tab bar size is specified
    * @param tabListLabel aria-label for the tablist
    */
   public TabLayoutPanel(double barHeight, Unit barUnit, String tabListLabel) {
@@ -276,7 +286,9 @@ public class TabLayoutPanel extends ResizeComposite implements HasWidgets,
 
     tabBar.setStyleName("gwt-TabLayoutPanelTabs");
     Roles.getTablistRole().set(tabBar.getElement());
-    Roles.getTablistRole().setAriaLabelProperty(tabBar.getElement(), tabListLabel);
+    if (tabListLabel != null) {
+      Roles.getTablistRole().setAriaLabelProperty(tabBar.getElement(), tabListLabel);
+    }
     setStyleName("gwt-TabLayoutPanel");
   }
 
@@ -443,8 +455,7 @@ public class TabLayoutPanel extends ResizeComposite implements HasWidgets,
   {
     checkChild(child);
     Tab tab = tabs.get(getWidgetIndex(child));
-    if (tab != null)
-    {
+    if (tab != null) {
       tab.getElement().setId(id);
     }
   }
