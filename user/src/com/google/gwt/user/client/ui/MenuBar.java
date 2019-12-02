@@ -1169,6 +1169,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
       setItemColSpan(item, 1);
       Element td = DOM.createTD();
       td.setPropertyString("vAlign", "middle");
+      Roles.getPresentationRole().setAriaHiddenState(td, true);
       String indicatorHtml = subMenuIcon.getSafeHtml().asString();
       // add null alt attribute for a11y
       if (indicatorHtml.startsWith("<img") && indicatorHtml.endsWith(">"))
