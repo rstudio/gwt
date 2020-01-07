@@ -1253,7 +1253,10 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
     DOM.appendChild(outer, table);
     setElement(outer);
 
-    Roles.getMenubarRole().set(getElement());
+    if (vertical)
+      Roles.getMenuRole().set(getElement());
+    else
+      Roles.getMenubarRole().set(getElement());
     Roles.getPresentationRole().set(table);
 
     sinkEvents(Event.ONCLICK | Event.ONMOUSEOVER | Event.ONMOUSEOUT
