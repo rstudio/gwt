@@ -15,6 +15,8 @@
  */
 package com.google.gwt.user.client.ui;
 
+import com.google.gwt.aria.client.OrientationValue;
+import com.google.gwt.aria.client.Roles;
 import com.google.gwt.core.client.Duration;
 import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.core.client.Scheduler.ScheduledCommand;
@@ -22,6 +24,7 @@ import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.Style.Position;
 import com.google.gwt.dom.client.Style.Unit;
+import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.user.client.Event;
 import com.google.gwt.user.client.Window;
@@ -59,10 +62,13 @@ import com.google.gwt.user.client.Window;
 public class SplitLayoutPanel extends DockLayoutPanel {
 
   class HSplitter extends Splitter {
-    public HSplitter(Widget target, boolean reverse) {
-      super(target, reverse);
+    public HSplitter(Widget target, boolean reverse, boolean keyboardSupport) {
+      super(target, reverse, keyboardSupport);
       getElement().getStyle().setPropertyPx("width", splitterSize);
       setStyleName("gwt-SplitLayoutPanel-HDragger");
+      if (keyboardSupport)
+        Roles.getSeparatorRole().setAriaOrientationProperty(getElement(),
+              OrientationValue.VERTICAL);
     }
 
     @Override
@@ -106,13 +112,19 @@ public class SplitLayoutPanel extends DockLayoutPanel {
     private boolean toggleDisplayAllowed = false;
     private double lastClick = 0;
 
-    public Splitter(Widget target, boolean reverse) {
+    public Splitter(Widget target, boolean reverse, boolean keyboardSupport) {
       this.target = target;
       this.reverse = reverse;
 
       setElement(Document.get().createDivElement());
-      sinkEvents(Event.ONMOUSEDOWN | Event.ONMOUSEUP | Event.ONMOUSEMOVE
-          | Event.ONDBLCLICK);
+      int eventBits = Event.ONMOUSEDOWN | Event.ONMOUSEUP | Event.ONMOUSEMOVE | Event.ONDBLCLICK;
+      if (keyboardSupport)
+      {
+        Roles.getSeparatorRole().set(getElement());
+        getElement().setTabIndex(-1);
+        eventBits |= (Event.ONKEYDOWN | Event.ONBLUR | Event.ONFOCUS);
+      }
+      sinkEvents(eventBits);
     }
 
     @Override
@@ -190,6 +202,41 @@ public class SplitLayoutPanel extends DockLayoutPanel {
             event.preventDefault();
           }
           break;
+
+        case Event.ONKEYDOWN:
+          int delta = 0;
+          switch (event.getKeyCode())
+          {
+          case KeyCodes.KEY_LEFT:
+          case KeyCodes.KEY_UP:
+            delta = keyboardResizeDelta;
+            break;
+
+          case KeyCodes.KEY_RIGHT:
+          case KeyCodes.KEY_DOWN:
+            delta = -keyboardResizeDelta;
+            break;
+          }
+          if (delta != 0)
+          {
+            if (event.getShiftKey())
+                delta = delta < 0 ? -1 : 1;
+
+            ((LayoutData) target.getLayoutData()).hidden = false;
+            double newSize = getAssociatedWidgetSize() + delta;
+            setAssociatedWidgetSize(newSize);
+            event.preventDefault();
+            return;
+          }
+          break;
+
+        case Event.ONBLUR:
+          removeStyleDependentName("focused");
+          break;
+        
+        case Event.ONFOCUS:
+          addStyleDependentName("focused");
+          break;
       }
     }
 
@@ -233,6 +280,11 @@ public class SplitLayoutPanel extends DockLayoutPanel {
       return Math.max(((LayoutData) target.getLayoutData()).size + centerSize,
                 0);
     }
+    
+    private double getAssociatedWidgetSize()
+    {
+      return ((LayoutData) target.getLayoutData()).size;
+    }
 
     private void setAssociatedWidgetSize(double size) {
       double maxSize = getMaxSize();
@@ -271,10 +323,15 @@ public class SplitLayoutPanel extends DockLayoutPanel {
   }
 
   class VSplitter extends Splitter {
-    public VSplitter(Widget target, boolean reverse) {
-      super(target, reverse);
+    public VSplitter(Widget target, boolean reverse, boolean keyboardSupport) {
+      super(target, reverse, keyboardSupport);
       getElement().getStyle().setPropertyPx("height", splitterSize);
       setStyleName("gwt-SplitLayoutPanel-VDragger");
+      if (keyboardSupport)
+      {
+        Roles.getSeparatorRole().setAriaOrientationProperty(getElement(), 
+              OrientationValue.HORIZONTAL);
+      }
     }
 
     @Override
@@ -313,6 +370,8 @@ public class SplitLayoutPanel extends DockLayoutPanel {
   private static Element glassElem = null;
 
   private final int splitterSize;
+  private boolean keyboardSupport;
+  private int keyboardResizeDelta;
 
   /**
    * Construct a new {@link SplitLayoutPanel} with the default splitter size of
@@ -331,6 +390,8 @@ public class SplitLayoutPanel extends DockLayoutPanel {
   public SplitLayoutPanel(int splitterSize) {
     super(Unit.PX);
     this.splitterSize = splitterSize;
+    this.keyboardSupport = false;
+    this.keyboardResizeDelta = 0;
     setStyleName("gwt-SplitLayoutPanel");
 
     if (glassElem == null) {
@@ -348,6 +409,25 @@ public class SplitLayoutPanel extends DockLayoutPanel {
       glassElem.getStyle().setProperty("background", "white");
       glassElem.getStyle().setOpacity(0.0);
     }
+  }
+
+  /**
+   * RStudio addition to allow setting focus on splitters and adjusting via Left/Right arrow keys
+   */
+  public SplitLayoutPanel(int splitterSize, boolean keyboardSupport, int keyboardResizeDelta)
+  {
+    this(splitterSize);
+    this.keyboardSupport = keyboardSupport;
+    this.keyboardResizeDelta = keyboardResizeDelta;
+  }
+
+  public Element getAssociatedSplitterElement(Widget child)
+  {
+    Splitter splitter = getAssociatedSplitter(child);
+    if (splitter != null)
+      return splitter.getElement();
+    else
+      return null;
   }
 
   /**
@@ -475,16 +555,16 @@ public class SplitLayoutPanel extends DockLayoutPanel {
     Splitter splitter = null;
     switch (getResolvedDirection(layout.direction)) {
       case WEST:
-        splitter = new HSplitter(widget, false);
+        splitter = new HSplitter(widget, false, keyboardSupport);
         break;
       case EAST:
-        splitter = new HSplitter(widget, true);
+        splitter = new HSplitter(widget, true, keyboardSupport);
         break;
       case NORTH:
-        splitter = new VSplitter(widget, false);
+        splitter = new VSplitter(widget, false, keyboardSupport);
         break;
       case SOUTH:
-        splitter = new VSplitter(widget, true);
+        splitter = new VSplitter(widget, true, keyboardSupport);
         break;
       default:
         assert false : "Unexpected direction";
