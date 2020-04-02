@@ -808,7 +808,20 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
           case KeyCodes.KEY_TAB:
             closeAllParentsAndChildren();
             break;
+          case KeyCodes.KEY_HOME:
+            if (vertical) {
+              selectFirst();
+              eatEvent(event);
+            }
+            break;
+          case KeyCodes.KEY_END:
+            if (vertical) {
+              selectLast();
+              eatEvent(event);
+            }
+            break;
           case KeyCodes.KEY_ENTER:
+          case KeyCodes.KEY_SPACE:
             if (!selectFirstItemIfNoneSelected()) {
               doItemAction(selectedItem, true, true);
               eatEvent(event);
@@ -1410,6 +1423,38 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
     }
     return false;
  }
+
+  private void selectFirst() {
+    for (MenuItem nextItem : items) {
+      if (nextItem.isEnabled() && nextItem.isVisible()) {
+        selectItem(nextItem);
+        return;
+      }
+    }
+    for (MenuItem nextItem : items) {
+      if (nextItem.isVisible()) {
+        selectItem(nextItem);
+        return;
+      }
+    }
+  }
+
+  private void selectLast() {
+    for (int i = items.size() - 1; i >= 0; i--) {
+      MenuItem nextItem = items.get(i);
+      if (nextItem.isEnabled() && nextItem.isVisible()) {
+        selectItem(nextItem);
+        return;
+      }
+    }
+    for (int i = items.size() - 1; i >= 0; i--) {
+      MenuItem nextItem = items.get(i);
+      if (nextItem.isVisible()) {
+        selectItem(nextItem);
+        return;
+      }
+    }
+  }
 
   private void selectNextItem() {
     if (selectedItem == null) {
