@@ -26,7 +26,9 @@ import com.google.gwt.emultest.java.lang.BooleanTest;
 import com.google.gwt.emultest.java.lang.ByteTest;
 import com.google.gwt.emultest.java.lang.CharacterTest;
 import com.google.gwt.emultest.java.lang.CompilerConstantStringTest;
+import com.google.gwt.emultest.java.lang.DoubleEqualsSemanticsTest;
 import com.google.gwt.emultest.java.lang.DoubleTest;
+import com.google.gwt.emultest.java.lang.FloatEqualsSemanticsTest;
 import com.google.gwt.emultest.java.lang.FloatTest;
 import com.google.gwt.emultest.java.lang.IntegerTest;
 import com.google.gwt.emultest.java.lang.JsExceptionTest;
@@ -52,7 +54,10 @@ import com.google.gwt.emultest.java.security.MessageDigestTest;
 import com.google.gwt.emultest.java.sql.SqlDateTest;
 import com.google.gwt.emultest.java.sql.SqlTimeTest;
 import com.google.gwt.emultest.java.sql.SqlTimestampTest;
-
+import com.google.gwt.emultest.java.util.ComparatorTest;
+import com.google.gwt.emultest.java.util.DateTest;
+import com.google.gwt.emultest.java.util.ObjectsTest;
+import com.google.gwt.emultest.java.util.RandomTest;
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 import org.junit.runners.Suite.SuiteClasses;
@@ -76,7 +81,9 @@ import org.junit.runners.Suite.SuiteClasses;
   CharacterTest.class,
   CompilerConstantStringTest.class,
   DoubleTest.class,
+  DoubleEqualsSemanticsTest.class,
   FloatTest.class,
+  FloatEqualsSemanticsTest.class,
   IntegerTest.class,
   JsExceptionTest.class,
   LongTest.class,
@@ -113,7 +120,13 @@ import org.junit.runners.Suite.SuiteClasses;
   SqlTimeTest.class,
   SqlTimestampTest.class,
 
+  // -- java.util
+  ComparatorTest.class,
+  DateTest.class,
+  ObjectsTest.class,
+  RandomTest.class,
+
   // Put last to reduce number of times the test framework switches modules
   MathContextWithObfuscatedEnumsTest.class,
 })
-public class EmulSuite { }
+public class EmulSuite {}

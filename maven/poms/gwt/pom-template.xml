@@ -22,6 +22,7 @@
     </licenses>
     <properties>
       <jetty.version>9.2.14.v20151106</jetty.version>
+      <asm.version>7.1</asm.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -59,10 +60,8 @@
             </dependency>
             <dependency>
                 <groupId>com.google.jsinterop</groupId>
-                <artifactId>jsinterop</artifactId>
-                <version>${jsinteropVersion}</version>
-                <type>pom</type>
-                <scope>import</scope>
+                <artifactId>jsinterop-annotations</artifactId>
+                <version>2.0.0</version>
             </dependency>
             <dependency>
                 <groupId>javax.servlet</groupId>
@@ -88,10 +87,18 @@
             </dependency>
             <dependency>
                 <groupId>org.ow2.asm</groupId>
-                <artifactId>asm-parent</artifactId>
-                <version>5.0.3</version>
-                <type>pom</type>
-                <scope>import</scope>
+                <artifactId>asm</artifactId>
+                <version>${asm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm-commons</artifactId>
+                <version>${asm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm-util</artifactId>
+                <version>${asm.version}</version>
             </dependency>
             <dependency>
                 <groupId>colt</groupId>
@@ -116,7 +123,7 @@
             <dependency>
                 <groupId>com.ibm.icu</groupId>
                 <artifactId>icu4j</artifactId>
-                <version>50.1.1</version>
+                <version>63.1</version>
             </dependency>
             <dependency>
                 <groupId>net.sourceforge.htmlunit</groupId>

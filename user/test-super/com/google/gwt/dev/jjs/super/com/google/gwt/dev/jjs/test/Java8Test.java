@@ -16,6 +16,8 @@
 package com.google.gwt.dev.jjs.test;
 
 import com.google.gwt.core.client.GwtScriptOnly;
+import com.google.gwt.core.client.JavaScriptObject;
+import com.google.gwt.core.client.JsonUtils;
 import com.google.gwt.dev.jjs.test.defaultmethods.ImplementsWithDefaultMethodAndStaticInitializer;
 import com.google.gwt.dev.jjs.test.defaultmethods.SomeClass;
 import com.google.gwt.junit.client.GWTTestCase;
@@ -23,6 +25,11 @@ import com.google.gwt.junit.client.GWTTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiFunction;
+import java.util.function.IntFunction;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import jsinterop.annotations.JsFunction;
 import jsinterop.annotations.JsOverlay;
@@ -357,6 +364,27 @@ public class Java8Test extends GWTTestCase {
 
       int goo() {
         I i = super::foo;
+        return i.foo(0);
+      }
+    }
+
+    assertEquals(42, new X().goo());
+  }
+
+  public void testQualifiedSuperReferenceExpression() {
+    class Y {
+      int foo(Integer i) {
+        return 42;
+      }
+    }
+
+    class X extends Y {
+      int foo(Integer i) {
+        return 23;
+      }
+
+      int goo() {
+        I i = X.super::foo;
         return i.foo(0);
       }
     }
@@ -715,43 +743,15 @@ public class Java8Test extends GWTTestCase {
   interface SimpleI {
     int fun();
   }
-  interface SimpleJ {
-    int foo();
-    int bar();
-  }
   interface SimpleK {
   }
   public void testIntersectionCastWithLambdaExpr() {
-    SimpleI simpleI1 = (SimpleI & EmptyI) () -> { return 11; };
+    SimpleI simpleI1 = (SimpleI & EmptyI) () -> 11;
     assertEquals(11, simpleI1.fun());
-    SimpleI simpleI2 = (EmptyI & SimpleI) () -> { return 22; };
+    SimpleI simpleI2 = (EmptyI & SimpleI) () -> 22;
     assertEquals(22, simpleI2.fun());
-    EmptyI emptyI = (EmptyI & SimpleI) () -> { return 33; };
-    try {
-      ((EmptyA & SimpleI) () -> { return 33; }).fun();
-      fail("Should have thrown a ClassCastException");
-    } catch (ClassCastException e) {
-      // expected.
-    }
-    try {
-      ((SimpleI & SimpleJ) () -> { return 44; }).fun();
-      fail("Should have thrown a ClassCastException");
-    } catch (ClassCastException e) {
-      // expected.
-    }
-    try {
-      ((SimpleI & SimpleJ) () -> { return 44; }).foo();
-      fail("Should have thrown a ClassCastException");
-    } catch (ClassCastException e) {
-      // expected.
-    }
-    try {
-      ((SimpleI & SimpleJ) () -> { return 44; }).bar();
-      fail("Should have thrown a ClassCastException");
-    } catch (ClassCastException e) {
-      // expected.
-    }
-    assertEquals(55, ((SimpleI & SimpleK) () -> { return 55; }).fun());
+    EmptyI emptyI = (EmptyI & SimpleI) () -> 33;
+    assertEquals(55, ((SimpleI & SimpleK) () -> 55).fun());
   }
 
   class SimpleA {
@@ -1617,7 +1617,7 @@ public class Java8Test extends GWTTestCase {
     assertEquals(4, outer.createInner2Param().apply(1, 2).sum);
     assertEquals(7, outer.createInner3Param().apply(1, 2, 3).sum);
     assertEquals(7, outer.createInner2ParamArray().apply(1, new Integer[] {2, 3}).sum);
-    
+
     // inner class constructor varargs + autoboxing
     assertEquals(2, outer.createInner1IntParam().apply(1).sum);
     assertEquals(4, outer.createInner2IntParam().apply(1, 2).sum);
@@ -1931,5 +1931,186 @@ public class Java8Test extends GWTTestCase {
     java.util.function.Function<String[], String> function = Java8Test::first;
     assertEquals("Hello", function.apply(new String[] {"Hello", "GoodBye"}));
   }
-}
 
+  interface SingleJsoImplA {
+    String getAData();
+
+    List<SingleJsoImplB> getListOfB();
+  }
+
+  interface SingleJsoImplB {
+    String getBData();
+  }
+
+  private static final class AOverlay extends JavaScriptObject implements SingleJsoImplA {
+    protected AOverlay() { }
+
+    @Override
+    public native String getAData() /*-{
+      return this.data;
+    }-*/;
+
+    @Override
+    public native List<SingleJsoImplB> getListOfB() /*-{
+      return @java.util.Arrays::asList(*)(this.listOfb);
+    }-*/;
+  }
+
+  private static final class BOverlay extends JavaScriptObject implements SingleJsoImplB {
+    protected BOverlay() { }
+
+    @Override
+    public native String getBData() /*-{
+      return this.data;
+    }-*/;
+  }
+
+  private static SingleJsoImplA createA() {
+    return JsonUtils.safeEval(
+        "{\"data\":\"a value\",\"listOfb\":[{\"data\":\"b1\"},{\"data\":\"b2\"}]}");
+  }
+
+  // Regression for issue #9558
+  public void testJSOLivenessSingleImplErasure() {
+    SingleJsoImplA a = createA();
+    String result = a.getListOfB().stream()
+        .map(SingleJsoImplB::getBData).collect(Collectors.joining(","));
+    assertEquals("b1,b2", result);
+    result = a.getListOfB().stream()
+        .map(b -> b.getBData()).collect(Collectors.joining(","));
+    assertEquals("b1,b2", result);
+  }
+
+  @SuppressWarnings({"rawtypes", "unchecked"})
+  public void testLambdaErasureCasts() {
+    List list = new ArrayList<String>();
+    list.add("2");
+    try {
+      ((List<Integer>) list).stream().map(n -> n.intValue() == 2).findAny();
+      fail("Should have thrown.");
+    } catch (ClassCastException expected) {
+    }
+  }
+
+  public void testLambdaBoxing() {
+    BiFunction<Integer, Integer, Boolean> equals = (i, j) -> i + 0 == j;
+    assertTrue(equals.apply(1,1));
+    assertTrue(equals.apply(new Integer(2),2));
+    assertTrue(equals.apply(new Integer(3), new Integer(3)));
+
+    IntFunction<Integer> unboxBox = i -> i;
+    assertEquals(2, (int) unboxBox.apply(2));
+    assertEquals(2, (int) unboxBox.apply(new Integer(2)));
+  }
+
+  ////////////////////////////////////////////////////////////
+  //
+  //   Tests for language features introduced in Java 9
+
+  class Resource implements AutoCloseable {
+    boolean isOpen = true;
+
+    public void close() {
+      this.isOpen = false;
+    }
+  }
+
+  public void testTryWithResourcesJava9() {
+    Resource r1 = new Resource();
+    assertTrue(r1.isOpen);
+    Resource r2Copy;
+    try (r1; Resource r2 = new Resource()) {
+      assertTrue(r1.isOpen);
+      assertTrue(r2.isOpen);
+      r2Copy = r2;
+    }
+    assertFalse(r1.isOpen);
+    assertFalse(r2Copy.isOpen);
+  }
+
+  private interface InterfaceWithPrivateMethods {
+    int implementedMethod();
+
+    default int defaultMethod() {
+      return privateMethod();
+    }
+
+    private int privateMethod() {
+      return implementedMethod();
+    }
+
+    private int staticPrivateMethod() {
+      return 42;
+    }
+  }
+
+  public void testInterfacePrivateMethodsJava9() {
+    InterfaceWithPrivateMethods implementor = () -> 50;
+    assertEquals(50, implementor.implementedMethod());
+    assertEquals(50, implementor.defaultMethod());
+    assertEquals(42, implementor.staticPrivateMethod());
+  }
+
+  public void testAnonymousDiamondJava9() {
+    Supplier<String> helloSupplier = new Supplier<>() {
+      @Override
+      public String get() {
+        return "hello";
+      }
+    };
+    assertEquals("hello", helloSupplier.get());
+  }
+
+  interface Selector extends Predicate<String> {
+    @Override
+    boolean test(String object);
+
+    default Selector trueSelector() {
+      // Unused variable that creates a lambda with a bridge for the method test. The bug #9598
+      // was caused by GwtAstBuilder associating the bridge method Lambda.test(Object) on the
+      // lambda below to the method Predicate.test(Object), causing the method resolution in the
+      // code that refers to the Predicate.test(Object) in the test below to refer to
+      // Lambda.test(Object) which is the wrong method.
+      return receiver -> true;
+    }
+  }
+
+  // Regression tests for #9598
+  public void testImproperMethodResolution() {
+    Predicate p = o -> true;
+    assertTrue(p.test(null));
+  }
+
+  interface I2<T> { public T foo(T arg); }
+
+  interface I1 extends I2<String> { public String foo(String arg0); }
+
+  @SuppressWarnings({"rawtypes", "unchecked"})
+  public void testIntersectionCastLambda() {
+
+    Object instance = (I1 & I2<String>) val -> "#" + val;
+
+    assertTrue(instance instanceof I1);
+    assertTrue(instance instanceof I2);
+
+    I1 lambda = (I1) instance;
+    I2 raw = lambda;
+    assertEquals("#1", raw.foo("1")); // tests that the bridge exists and is correct
+    assertEquals("#2", lambda.foo("2"));
+  }
+
+  static class C { public static String append(String str) { return "#" + str; } }
+  @SuppressWarnings({"rawtypes", "unchecked"})
+  public void testIntersectionCastMethodReference() {
+
+    Object instance = (I1 & I2<String>) C::append;
+
+    assertTrue(instance instanceof I1);
+    assertTrue(instance instanceof I2);
+
+    I1 lambda = (I1) instance;
+    I2 raw = lambda;
+    assertEquals("#1", raw.foo("1")); // tests that the bridge exists and is correct
+    assertEquals("#2", lambda.foo("2"));
+  }
+}

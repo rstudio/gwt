@@ -885,7 +885,7 @@ public class CompilerTest extends ArgProcessorTestBase {
     assertTrue(options.isEnableAssertions());
     assertTrue(options.shouldClusterSimilarFunctions());
     assertTrue(options.shouldInlineLiteralParameters());
-    assertTrue(options.shouldOptimizeDataflow());
+    assertFalse(options.shouldOptimizeDataflow());
     assertTrue(options.shouldOrdinalizeEnums());
     assertTrue(options.shouldRemoveDuplicateFunctions());
     assertTrue(options.isIncrementalCompileEnabled());
@@ -914,7 +914,7 @@ public class CompilerTest extends ArgProcessorTestBase {
     assertFalse(options.isEnableAssertions());
     assertTrue(options.shouldClusterSimilarFunctions());
     assertTrue(options.shouldInlineLiteralParameters());
-    assertTrue(options.shouldOptimizeDataflow());
+    assertFalse(options.shouldOptimizeDataflow());
     assertTrue(options.shouldOrdinalizeEnums());
     assertTrue(options.shouldRemoveDuplicateFunctions());
     assertFalse(options.isIncrementalCompileEnabled());
@@ -957,12 +957,18 @@ public class CompilerTest extends ArgProcessorTestBase {
 
     assertEquals(SourceLevel.JAVA8, SourceLevel.getBestMatchingVersion("1.7"));
     assertEquals(SourceLevel.JAVA8, SourceLevel.getBestMatchingVersion("1.8"));
-    assertEquals(SourceLevel.JAVA8, SourceLevel.getBestMatchingVersion("1.9"));
+    assertEquals(SourceLevel.JAVA9, SourceLevel.getBestMatchingVersion("1.9"));
+    assertEquals(SourceLevel.JAVA10, SourceLevel.getBestMatchingVersion("1.10"));
+    assertEquals(SourceLevel.JAVA11, SourceLevel.getBestMatchingVersion("1.11"));
 
     // not proper version strings => default to JAVA8.
     assertEquals(SourceLevel.JAVA8, SourceLevel.getBestMatchingVersion("1.6u3"));
     assertEquals(SourceLevel.JAVA8, SourceLevel.getBestMatchingVersion("1.6b3"));
     assertEquals(SourceLevel.JAVA8, SourceLevel.getBestMatchingVersion("1.7b3"));
+  }
+
+  public void testSourceLevelHighestVersion() {
+    assertEquals(SourceLevel.values()[SourceLevel.values().length - 1], SourceLevel.getHighest());
   }
 
   /**
@@ -1696,7 +1702,7 @@ public class CompilerTest extends ArgProcessorTestBase {
     File applicationDir = Files.createTempDir();
     CompilerOptions compilerOptions = new CompilerOptionsImpl();
     compilerOptions.setUseDetailedTypeIds(true);
-    compilerOptions.setSourceLevel(SourceLevel.JAVA8);
+    compilerOptions.setSourceLevel(SourceLevel.JAVA11);
 
     // Compile the application with no errors.
     compileToJs(TreeLogger.NULL, compilerOptions, applicationDir, "com.foo.Errors",
@@ -1759,7 +1765,7 @@ public class CompilerTest extends ArgProcessorTestBase {
     File applicationDir = Files.createTempDir();
     CompilerOptions compilerOptions = new CompilerOptionsImpl();
     compilerOptions.setUseDetailedTypeIds(true);
-    compilerOptions.setSourceLevel(SourceLevel.JAVA8);
+    compilerOptions.setSourceLevel(SourceLevel.JAVA11);
     compilerOptions.setGenerateJsInteropExports(false);
 
     // Compile the application with no errors.
@@ -2110,7 +2116,7 @@ public class CompilerTest extends ArgProcessorTestBase {
 
     CompilerOptions compilerOptions = new CompilerOptionsImpl();
     compilerOptions.setUseDetailedTypeIds(true);
-    compilerOptions.setSourceLevel(SourceLevel.JAVA8);
+    compilerOptions.setSourceLevel(SourceLevel.JAVA11);
 
     checkRecompiledModifiedApp(compilerOptions, "com.foo.DefaultMethod",
         Lists.newArrayList(moduleResource, entryPointResource, aSubclass,
@@ -2741,11 +2747,15 @@ public class CompilerTest extends ArgProcessorTestBase {
     // always traversed fully and polute the tests, so they will be removed from stale type
     // comparisons.
     staleTypeNames.removeAll(Arrays.asList(
+        "java.io.HasSerializableTypeMarker",
+        "java.io.Serializable",
         "java.lang.Boolean",
         "java.lang.CharSequence",
+        "java.lang.Cloneable",
         "java.lang.Comparable",
         "java.lang.Double",
         "java.lang.HasCharSequenceTypeMarker",
+        "java.lang.HasCloneableTypeMarker",
         "java.lang.HasComparableTypeMarker",
         "java.lang.Integer$NativeNumber",
         "java.lang.Number",
@@ -2754,6 +2764,7 @@ public class CompilerTest extends ArgProcessorTestBase {
         "java.lang.String$NativeFunction",
         "java.lang.String$NativeString",
         "java.lang.Throwable",
+        "java.lang.Throwable$HasJavaThrowable",
         "java.lang.Throwable$NativeError",
         "java.lang.Throwable$NativeTypeError",
         "javaemul.internal.NativeRegExp",

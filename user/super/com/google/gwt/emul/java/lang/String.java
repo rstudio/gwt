@@ -28,8 +28,6 @@ import java.util.Comparator;
 import java.util.Locale;
 import java.util.StringJoiner;
 
-import javax.annotation.Nonnull;
-
 import javaemul.internal.ArrayHelper;
 import javaemul.internal.EmulatedCharset;
 import javaemul.internal.HashCodes;
@@ -38,6 +36,7 @@ import javaemul.internal.NativeRegExp;
 import javaemul.internal.annotations.DoNotInline;
 
 import jsinterop.annotations.JsMethod;
+import jsinterop.annotations.JsNonNull;
 import jsinterop.annotations.JsPackage;
 import jsinterop.annotations.JsProperty;
 import jsinterop.annotations.JsType;
@@ -190,8 +189,7 @@ public final class String implements Comparable<String>, CharSequence,
 
   // valueOf needs to be treated special:
   // J2cl uses it for String concat and thus it can not use string concatenation itself.
-  @Nonnull
-  public static String valueOf(Object x) {
+  public static @JsNonNull String valueOf(Object x) {
     return x == null ? "null" : x.toString();
   }
 
@@ -525,11 +523,14 @@ public final class String implements Comparable<String>, CharSequence,
   public boolean regionMatches(boolean ignoreCase, int toffset, String other,
       int ooffset, int len) {
     checkNotNull(other);
-    if (toffset < 0 || ooffset < 0 || len <= 0) {
+    if (toffset < 0 || ooffset < 0) {
       return false;
     }
     if (toffset + len > length() || ooffset + len > other.length()) {
       return false;
+    }
+    if (len <= 0) {
+      return true;
     }
 
     String left = asNativeString().substr(toffset, len);

@@ -4,6 +4,8 @@
 
 # Working folder of ant build script
 /build/
+# Generated poms
+/maven/poms/**/pom.xml
 
 # RStudio-specific below here
 /.idea

@@ -23,6 +23,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import jsinterop.annotations.JsIgnore;
+import jsinterop.annotations.JsNonNull;
 import jsinterop.annotations.JsType;
 
 /**
@@ -141,6 +142,7 @@ public interface Map<K, V> {
 
   boolean isEmpty();
 
+  @JsNonNull
   Set<K> keySet();
 
   @JsIgnore
@@ -203,5 +205,5 @@ public interface Map<K, V> {
 
   int size();
 
-  Collection<V> values();
+  @JsNonNull Collection<V> values();
 }

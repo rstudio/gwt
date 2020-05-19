@@ -1,12 +1,12 @@
 /*
  * Copyright 2011 Google Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
@@ -97,6 +97,8 @@ public class ScriptInjectorTest extends GWTTestCase {
     new FromString(scriptBody).setRemoveTag(false).inject();
     boolean worked = nativeTest3Worked();
     JavaScriptObject scriptElement = findScriptTextInThisWindow(scriptBody);
+    // Since we are not in the top window, there is no nonce.
+    assertNull(nativeGetScriptNonce(scriptElement));
     if (!isIE8Or9()) {
       cleanupThisWindow("__ti3_var__", scriptElement);
       assertFalse("cleanup failed", nativeTest3Worked());
@@ -155,21 +157,18 @@ public class ScriptInjectorTest extends GWTTestCase {
 
   /**
    * This script injection should fail and fire the onFailure callback.
-   * 
-   * Note, the onerror mechanism used to trigger the failure event is a modern browser
-   * feature.
-   * 
-   * On IE, the script.onerror tag has been documented, but busted for <a
-   * href=
+   *
+   * <p>Note, the onerror mechanism used to trigger the failure event is a modern browser feature.
+   *
+   * <p>On IE, the script.onerror tag has been documented, but busted for <a href=
    * "http://stackoverflow.com/questions/2027849/how-to-trigger-script-onerror-in-internet-explorer/2032014#2032014"
    * >aeons</a>.
-   * 
    */
   public void testInjectUrlFail() {
     if (isIE8Or9()) {
       return;
     }
-    
+
     delayTestFinish(TEST_DELAY);
     final String scriptUrl = "uNkNoWn_sCrIpT_404.js";
     JavaScriptObject injectedElement =
@@ -201,30 +200,35 @@ public class ScriptInjectorTest extends GWTTestCase {
 
     // We'll check using a callback in another test. This test will poll to see
     // that the script had an effect.
-    Scheduler.get().scheduleFixedDelay(new RepeatingCommand() {
-      int numLoops = 0;
+    Scheduler.get()
+        .scheduleFixedDelay(
+            new RepeatingCommand() {
+              int numLoops = 0;
 
-      @Override
-      public boolean execute() {
-        numLoops++;
-        boolean worked = nativeTest4Worked();
-        if (!worked && (numLoops * CHECK_DELAY < TEST_DELAY)) {
-          return true;
-        }
-        JavaScriptObject scriptElement = findScriptUrlInThisWindow(scriptUrl);
-        if (!isIE8Or9()) {
-          cleanupThisWindow("__ti4_var__", scriptElement);
-          assertFalse("cleanup failed", nativeTest4Worked());
-        }
-        assertTrue("__ti4_var not set in this window", worked);
-        assertNotNull("script element 4 not found", scriptElement);
-        assertEquals(injectedElement, scriptElement);
-        finishTest();
+              @Override
+              public boolean execute() {
+                numLoops++;
+                boolean worked = nativeTest4Worked();
+                if (!worked && (numLoops * CHECK_DELAY < TEST_DELAY)) {
+                  return true;
+                }
+                JavaScriptObject scriptElement = findScriptUrlInThisWindow(scriptUrl);
+                // Since we are not in the top window, there is no nonce.
+                assertNull(nativeGetScriptNonce(scriptElement));
+                if (!isIE8Or9()) {
+                  cleanupThisWindow("__ti4_var__", scriptElement);
+                  assertFalse("cleanup failed", nativeTest4Worked());
+                }
+                assertTrue("__ti4_var not set in this window", worked);
+                assertNotNull("script element 4 not found", scriptElement);
+                assertEquals(injectedElement, scriptElement);
+                finishTest();
 
-        // never reached
-        return false;
-      }
-    }, CHECK_DELAY);
+                // never reached
+                return false;
+              }
+            },
+            CHECK_DELAY);
     assertNotNull(injectedElement);
   }
 
@@ -235,27 +239,33 @@ public class ScriptInjectorTest extends GWTTestCase {
     delayTestFinish(TEST_DELAY);
     final String scriptUrl = "script_injector_test5.js";
     assertFalse(nativeTest5Worked());
-    JavaScriptObject injectedElement = ScriptInjector.fromUrl(scriptUrl).setRemoveTag(false)
-        .setCallback(new Callback<Void, Exception>() {
-          @Override
-          public void onFailure(Exception reason) {
-            assertNotNull(reason);
-            fail("Injection failed: " + reason.toString());
-          }
+    JavaScriptObject injectedElement =
+        ScriptInjector.fromUrl(scriptUrl)
+            .setRemoveTag(false)
+            .setCallback(
+                new Callback<Void, Exception>() {
+                  @Override
+                  public void onFailure(Exception reason) {
+                    assertNotNull(reason);
+                    fail("Injection failed: " + reason.toString());
+                  }
 
-          @Override
-          public void onSuccess(Void result) {
-            boolean worked = nativeTest5Worked();
-            JavaScriptObject scriptElement = findScriptUrlInThisWindow(scriptUrl);
-            if (!isIE8Or9()) {
-              cleanupThisWindow("__ti5_var__", scriptElement);
-              assertFalse("cleanup failed", nativeTest5Worked());
-            }
-            assertTrue("__ti5_var not set in this window", worked);
-            assertNotNull("script element 5 not found", scriptElement);
-            finishTest();
-          }
-        }).inject();
+                  @Override
+                  public void onSuccess(Void result) {
+                    boolean worked = nativeTest5Worked();
+                    JavaScriptObject scriptElement = findScriptUrlInThisWindow(scriptUrl);
+                    // Since we are not in the top window, there is no nonce.
+                    assertNull(nativeGetScriptNonce(scriptElement));
+                    if (!isIE8Or9()) {
+                      cleanupThisWindow("__ti5_var__", scriptElement);
+                      assertFalse("cleanup failed", nativeTest5Worked());
+                    }
+                    assertTrue("__ti5_var not set in this window", worked);
+                    assertNotNull("script element 5 not found", scriptElement);
+                    finishTest();
+                  }
+                })
+            .inject();
     assertNotNull(injectedElement);
   }
 
@@ -269,29 +279,33 @@ public class ScriptInjectorTest extends GWTTestCase {
         .setWindow(ScriptInjector.TOP_WINDOW).inject();
     // We'll check using a callback in another test. This test will poll to see
     // that the script had an effect.
-    Scheduler.get().scheduleFixedDelay(new RepeatingCommand() {
-      int numLoops = 0;
+    Scheduler.get()
+        .scheduleFixedDelay(
+            new RepeatingCommand() {
+              int numLoops = 0;
 
-      @Override
-      public boolean execute() {
-        numLoops++;
+              @Override
+              public boolean execute() {
+                numLoops++;
 
-        boolean worked = nativeTest6Worked();
-        if (!worked && (numLoops * CHECK_DELAY < TEST_DELAY)) {
-          return true;
-        }
-        JavaScriptObject scriptElement = findScriptUrlInTopWindow(scriptUrl);
-        if (!isIE8Or9()) {
-          cleanupTopWindow("__ti6_var__", scriptElement);
-          assertFalse("cleanup failed", nativeTest6Worked());
-        }
-        assertTrue("__ti6_var not set in top window", worked);
-        assertNotNull("script element 6 not found", scriptElement);
-        finishTest();
-        // never reached
-        return false;
-      }
-    }, CHECK_DELAY);
+                boolean worked = nativeTest6Worked();
+                if (!worked && (numLoops * CHECK_DELAY < TEST_DELAY)) {
+                  return true;
+                }
+                JavaScriptObject scriptElement = findScriptUrlInTopWindow(scriptUrl);
+                assertDefaultNonce(scriptElement);
+                if (!isIE8Or9()) {
+                  cleanupTopWindow("__ti6_var__", scriptElement);
+                  assertFalse("cleanup failed", nativeTest6Worked());
+                }
+                assertTrue("__ti6_var not set in top window", worked);
+                assertNotNull("script element 6 not found", scriptElement);
+                finishTest();
+                // never reached
+                return false;
+              }
+            },
+            CHECK_DELAY);
     assertNotNull(injectedElement);
   }
 
@@ -302,29 +316,34 @@ public class ScriptInjectorTest extends GWTTestCase {
     delayTestFinish(TEST_DELAY);
     final String scriptUrl = "script_injector_test7.js";
     assertFalse(nativeTest7Worked());
-    JavaScriptObject injectedElement = ScriptInjector.fromUrl(scriptUrl).setRemoveTag(false)
-        .setWindow(ScriptInjector.TOP_WINDOW).setCallback(
-            new Callback<Void, Exception>() {
+    JavaScriptObject injectedElement =
+        ScriptInjector.fromUrl(scriptUrl)
+            .setRemoveTag(false)
+            .setWindow(ScriptInjector.TOP_WINDOW)
+            .setCallback(
+                new Callback<Void, Exception>() {
 
-              @Override
-              public void onFailure(Exception reason) {
-                assertNotNull(reason);
-                fail("Injection failed: " + reason.toString());
-              }
+                  @Override
+                  public void onFailure(Exception reason) {
+                    assertNotNull(reason);
+                    fail("Injection failed: " + reason.toString());
+                  }
 
-              @Override
-              public void onSuccess(Void result) {
-                boolean worked = nativeTest7Worked();
-                JavaScriptObject scriptElement = findScriptUrlInTopWindow(scriptUrl);
-                if (!isIE8Or9()) {
-                  cleanupTopWindow("__ti7_var__", scriptElement);
-                  assertFalse("cleanup failed", nativeTest7Worked());
-                }
-                assertTrue("__ti7_var not set in top window", worked);
-                assertNotNull("script element 7 not found", scriptElement);
-                finishTest();
-              }
-            }).inject();
+                  @Override
+                  public void onSuccess(Void result) {
+                    boolean worked = nativeTest7Worked();
+                    JavaScriptObject scriptElement = findScriptUrlInTopWindow(scriptUrl);
+                    assertDefaultNonce(scriptElement);
+                    if (!isIE8Or9()) {
+                      cleanupTopWindow("__ti7_var__", scriptElement);
+                      assertFalse("cleanup failed", nativeTest7Worked());
+                    }
+                    assertTrue("__ti7_var not set in top window", worked);
+                    assertNotNull("script element 7 not found", scriptElement);
+                    finishTest();
+                  }
+                })
+            .inject();
     assertNotNull(injectedElement);
   }
 
@@ -335,29 +354,123 @@ public class ScriptInjectorTest extends GWTTestCase {
     delayTestFinish(TEST_DELAY);
     final String scriptUrl = "script_injector_test_utf8.js";
     assertEquals("", nativeGetTestUtf8Var());
-    JavaScriptObject injectedElement = ScriptInjector.fromUrl(scriptUrl).setRemoveTag(false)
-        .setWindow(ScriptInjector.TOP_WINDOW).setCallback(
-            new Callback<Void, Exception>() {
+    JavaScriptObject injectedElement =
+        ScriptInjector.fromUrl(scriptUrl)
+            .setRemoveTag(false)
+            .setWindow(ScriptInjector.TOP_WINDOW)
+            .setCallback(
+                new Callback<Void, Exception>() {
 
-              @Override
-              public void onFailure(Exception reason) {
-                assertNotNull(reason);
-                fail("Injection failed: " + reason.toString());
-              }
+                  @Override
+                  public void onFailure(Exception reason) {
+                    assertNotNull(reason);
+                    fail("Injection failed: " + reason.toString());
+                  }
 
-              @Override
-              public void onSuccess(Void result) {
-                String testVar = nativeGetTestUtf8Var();
-                JavaScriptObject scriptElement = findScriptUrlInTopWindow(scriptUrl);
-                if (!isIE8Or9()) {
-                  cleanupTopWindow("__ti_utf8_var__", scriptElement);
-                  assertEquals("cleanup failed", "", nativeGetTestUtf8Var());
-                }
-                assertEquals("__ti_utf8_var not set in top window", "à", testVar);
-                assertNotNull("script element not found", scriptElement);
-                finishTest();
-              }
-            }).inject();
+                  @Override
+                  public void onSuccess(Void result) {
+                    String testVar = nativeGetTestUtf8Var();
+                    JavaScriptObject scriptElement = findScriptUrlInTopWindow(scriptUrl);
+                    assertDefaultNonce(scriptElement);
+                    if (!isIE8Or9()) {
+                      cleanupTopWindow("__ti_utf8_var__", scriptElement);
+                      assertEquals("cleanup failed", "", nativeGetTestUtf8Var());
+                    }
+                    assertEquals("__ti_utf8_var not set in top window", "à", testVar);
+                    assertNotNull("script element not found", scriptElement);
+                    finishTest();
+                  }
+                })
+            .inject();
+    assertNotNull(injectedElement);
+  }
+
+  public void testInjectUrlTopWindowNoncePropegated() {
+    if (isIE8Or9()) {
+      // IE doesn't support CSP.
+      return;
+    }
+    delayTestFinish(TEST_DELAY);
+    final String scriptUrl = "script_injector_test9.js";
+    final String nonceScriptUrl = "script_injector_test9_nonce.js";
+    final String nonce = "IAlwaysGetTheShemp";
+    final JavaScriptObject noncedScript =
+        nativeAddScriptWithNonceToWindow(nativeTopWindow(), nonce, nonceScriptUrl);
+    assertEquals(nonce, nativeGetScriptNonce(noncedScript));
+    assertFalse(nativeTest9Worked());
+    JavaScriptObject injectedElement =
+        ScriptInjector.fromUrl(scriptUrl)
+            .setRemoveTag(false)
+            .setWindow(ScriptInjector.TOP_WINDOW)
+            .setCallback(
+                new Callback<Void, Exception>() {
+
+                  @Override
+                  public void onFailure(Exception reason) {
+                    assertNotNull(reason);
+                    fail("Injection failed: " + reason.toString());
+                  }
+
+                  @Override
+                  public void onSuccess(Void result) {
+                    boolean worked = nativeTest9Worked();
+                    JavaScriptObject scriptElement = findScriptUrlInTopWindow(scriptUrl);
+                    assertEquals(nonce, nativeGetScriptNonce(scriptElement));
+                    if (!isIE8Or9()) {
+                      cleanupTopWindow("__ti9_var__", scriptElement);
+                      cleanupTopWindow("__ti9_nonce_var__", noncedScript);
+                      assertFalse("cleanup failed", nativeTest9Worked());
+                    }
+                    assertTrue("__ti9_var not set in top window", worked);
+                    assertNotNull("script element 9 not found", scriptElement);
+                    finishTest();
+                  }
+                })
+            .inject();
+    assertNotNull(injectedElement);
+  }
+
+  public void testInjectUrlThisWindowNoncePropegated() {
+    if (isIE8Or9()) {
+      // IE doesn't support CSP.
+      return;
+    }
+    delayTestFinish(TEST_DELAY);
+    final String scriptUrl = "script_injector_test10.js";
+    final String nonceScriptUrl = "script_injector_test10_nonce.js";
+    final String nonce = "ANearbyRoosterIsInHighDef";
+    final JavaScriptObject noncedScript =
+        nativeAddScriptWithNonceToWindow(nativeThisWindow(), nonce, nonceScriptUrl);
+    assertEquals(nonce, nativeGetScriptNonce(noncedScript));
+    assertFalse(nativeTest10Worked());
+    JavaScriptObject injectedElement =
+        ScriptInjector.fromUrl(scriptUrl)
+            .setRemoveTag(false)
+            .setCallback(
+                new Callback<Void, Exception>() {
+
+                  @Override
+                  public void onFailure(Exception reason) {
+                    assertNotNull(reason);
+                    fail("Injection failed: " + reason.toString());
+                  }
+
+                  @Override
+                  public void onSuccess(Void result) {
+                    boolean worked = nativeTest10Worked();
+                    JavaScriptObject scriptElement = findScriptUrlInThisWindow(scriptUrl);
+                    assertEquals(nonce, nativeGetScriptNonce(scriptElement));
+                    if (!isIE8Or9()) {
+                      cleanupThisWindow("__ti10_var__", scriptElement);
+                      cleanupThisWindow("__ti10_nonce_var__", noncedScript);
+                      assertFalse("cleanup failed", nativeTest10Worked());
+                    }
+                    assertTrue("__ti10_var not set in top window", worked);
+                    assertNotNull("script element 10 not found", scriptElement);
+                    finishTest();
+                  }
+                })
+            .inject();
     assertNotNull(injectedElement);
   }
 
@@ -375,6 +488,23 @@ public class ScriptInjectorTest extends GWTTestCase {
     if (scriptElement) {
       scriptElement.parentNode.removeChild(scriptElement);
     }
+  }-*/;
+
+  private void assertDefaultNonce(JavaScriptObject scriptElement) {
+    assertEquals(
+        "Expected script to have the default nonce value",
+        "gwt-nonce",
+        nativeGetScriptNonce(scriptElement));
+  }
+
+  private native JavaScriptObject nativeAddScriptWithNonceToWindow(
+      JavaScriptObject wnd, String nonce, String scriptUrl) /*-{
+    var scriptToAdd = wnd.document.createElement('script');
+    scriptToAdd.setAttribute('nonce', nonce);
+    scriptToAdd.src = scriptUrl;
+    var head = wnd.document.head || wnd.document.getElementsByTagName("head")[0];
+    head.insertBefore(scriptToAdd, head.firstChild);
+    return scriptToAdd;
   }-*/;
 
   private JavaScriptObject findScriptTextInThisWindow(String text) {
@@ -420,6 +550,10 @@ public class ScriptInjectorTest extends GWTTestCase {
     return null;
   }-*/;
 
+  private native String nativeGetScriptNonce(JavaScriptObject scriptElement) /*-{
+    return scriptElement['nonce'] || scriptElement.getAttribute('nonce');
+  }-*/;
+
   private native boolean nativeInjectUrlAbsoluteWorked() /*-{
     return !!window["__tiabsolute_var__"] && window["__tiabsolute_var__"] == 101;
   }-*/;
@@ -454,6 +588,14 @@ public class ScriptInjectorTest extends GWTTestCase {
 
   private native String nativeGetTestUtf8Var() /*-{
     return $wnd["__ti_utf8_var__"] || "";
+  }-*/;
+
+  private native boolean nativeTest9Worked() /*-{
+    return !!$wnd["__ti9_var__"] && $wnd["__ti9_var__"] == 9;
+  }-*/;
+
+  private native boolean nativeTest10Worked() /*-{
+    return !!window["__ti10_var__"] && window["__ti10_var__"] == 10;
   }-*/;
 
   private native JavaScriptObject nativeThisWindow() /*-{
