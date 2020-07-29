@@ -209,12 +209,18 @@ public class SplitLayoutPanel extends DockLayoutPanel {
           {
           case KeyCodes.KEY_LEFT:
           case KeyCodes.KEY_UP:
-            delta = keyboardResizeDelta;
+            if (reverse)
+               delta = keyboardResizeDelta;
+            else
+               delta = -keyboardResizeDelta;
             break;
 
           case KeyCodes.KEY_RIGHT:
           case KeyCodes.KEY_DOWN:
-            delta = -keyboardResizeDelta;
+            if (reverse)
+               delta = -keyboardResizeDelta;
+            else
+               delta = keyboardResizeDelta;
             break;
           }
           if (delta != 0)
