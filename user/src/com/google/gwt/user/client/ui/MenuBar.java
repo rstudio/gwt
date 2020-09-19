@@ -1363,7 +1363,6 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
 
   /*
    * This method is called when a menu bar is hidden, so that it can hide any
-   *
    * child popups that are currently being shown.
    */
   private void onHide(boolean focus) {
