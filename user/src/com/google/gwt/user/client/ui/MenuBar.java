@@ -306,6 +306,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
   private MenuItem expandedMenuItem;
   private boolean vertical, autoOpen;
   private boolean focusOnHover = true;
+  private boolean escClosesAll = true;
 
   /**
    * Creates an empty horizontal menu bar.
@@ -802,7 +803,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
             eatEvent(event);
             break;
           case KeyCodes.KEY_ESCAPE:
-            closeAllParentsAndChildren();
+            handleEscKey();
             eatEvent(event);
             break;
           case KeyCodes.KEY_TAB:
@@ -963,6 +964,16 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
    */
   public void setFocusOnHoverEnabled(boolean enabled) {
     focusOnHover = enabled;
+  }
+
+  /**
+   * Set whether hitting ESC key causes all popups to close (the default GWT
+   * behavior) or just the current one (typical Windows desktop menu behavior).
+   *
+   * @param closesAll true to close all menu popups, false to only close this one
+   */
+  public void setEscClosesAll(boolean closesAll) {
+    escClosesAll = closesAll;
   }
 
   /**
@@ -1321,6 +1332,16 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
           parentMenu.moveToNextItem();
         }
       }
+    }
+  }
+
+  private void handleEscKey() {
+    if (escClosesAll || !vertical || parentMenu == null) {
+      // Default GWT behavior or if we're on the top-level menubar
+      closeAllParentsAndChildren();
+    } else {
+      // Otherwise close this menu and focus the parent
+      close(true);
     }
   }
 
