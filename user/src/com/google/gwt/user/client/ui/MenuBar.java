@@ -1336,9 +1336,19 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
   }
 
   private void handleEscKey() {
-    if (escClosesAll || !vertical || parentMenu == null) {
-      // Default GWT behavior or if we're on the top-level menubar
+    if (escClosesAll) {
+      // Default GWT behavior
       closeAllParentsAndChildren();
+    } else if (!vertical || parentMenu == null) {
+      // special case if focus is on the top level menubar, but it has an expanded
+      // submenu; want to just hide that submenu
+      MenuItem item = getSelectedItem();
+      if (item != null && item.getSubMenu() != null && item.getSubMenu().isAttached()) {
+        item.getSubMenu().close(true);
+      }
+      else {
+        closeAllParentsAndChildren();
+      }
     } else {
       // Otherwise close this menu and focus the parent
       close(true);
