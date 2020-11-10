@@ -23,6 +23,9 @@ import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
+import com.google.gwt.event.dom.client.ContextMenuEvent;
+import com.google.gwt.event.dom.client.ContextMenuHandler;
+import com.google.gwt.event.dom.client.HasContextMenuHandlers;
 import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.event.dom.client.KeyDownEvent;
 import com.google.gwt.event.dom.client.KeyDownHandler;
@@ -107,7 +110,7 @@ public class TabLayoutPanel extends ResizeComposite implements HasWidgets,
     ProvidesResize, IndexedPanel.ForIsWidget, AnimatedLayout,
     HasBeforeSelectionHandlers<Integer>, HasSelectionHandlers<Integer> {
 
-  private class Tab extends SimplePanel {
+  private class Tab extends SimplePanel implements HasContextMenuHandlers {
     private Element inner;
     private boolean replacingWidget;
 
@@ -180,6 +183,12 @@ public class TabLayoutPanel extends ResizeComposite implements HasWidgets,
 
     public void setFocus() {
       getElement().focus();
+    }
+
+    @Override
+    public HandlerRegistration addContextMenuHandler(ContextMenuHandler handler)
+    {
+      return addDomHandler(handler, ContextMenuEvent.getType());
     }
   }
 
@@ -766,6 +775,17 @@ public class TabLayoutPanel extends ResizeComposite implements HasWidgets,
   public void setTabText(int index, String text) {
     checkIndex(index);
     tabs.get(index).setWidget(new Label(text));
+  }
+
+  /**
+   * Set a tab's context-menu handler.
+   *
+   * @param index the index of the tab whose handler is to be set
+   * @param handler the object's new handler
+   */
+  public void setTabContextMenuHandler(int index, ContextMenuHandler handler) {
+    checkIndex(index);
+    tabs.get(index).addContextMenuHandler(handler);
   }
 
   private void checkChild(Widget child) {
