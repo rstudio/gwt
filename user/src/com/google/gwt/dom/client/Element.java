@@ -206,8 +206,8 @@ public class Element extends Node {
    *      HTML Specification</a>
    */
   public final native String getClassName() /*-{
-     return this.className || "";
-   }-*/;
+    return (this.classList || {}).value || this.className || "";
+  }-*/;
 
   /**
    * Returns the inner height of an element in pixels, including padding but not
