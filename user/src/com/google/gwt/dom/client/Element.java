@@ -206,7 +206,13 @@ public class Element extends Node {
    *      HTML Specification</a>
    */
   public final native String getClassName() /*-{
-    return (this.classList || {}).value || this.className || "";
+
+    var name = (this.classList || {}).value;
+    if (typeof name === "string")
+      return name;
+
+    return this.className || "";
+
   }-*/;
 
   /**
