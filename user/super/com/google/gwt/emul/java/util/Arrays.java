@@ -40,8 +40,8 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import javaemul.internal.ArrayHelper;
+import javaemul.internal.ArrayHelper.CompareFunction;
 import javaemul.internal.JsUtils;
-import javaemul.internal.NativeArray.CompareFunction;
 import jsinterop.annotations.JsFunction;
 
 /**
@@ -600,13 +600,11 @@ public class Arrays {
   }
 
   private static <T> T[] copyObjectArray(T[] original, int from, int to) {
-    T[] copy = ArrayHelper.clone(original, from, to);
-    ArrayHelper.setLength(copy, to - from);
-    return copy;
+    return ArrayHelper.clone(original, from, to);
   }
 
   private static void checkCopyOfRange(Object original, int from, int to) {
-    checkArgument(from <= to, "%s > %s", from, to);
+    checkArgument(from <= to, from + " > " + to);
     int len = ArrayHelper.getLength(original);
     checkCriticalArrayBounds(from, from, len);
   }
@@ -1241,7 +1239,7 @@ public class Arrays {
   }
 
   public static void sort(double[] array) {
-    ArrayHelper.asNativeArray(array).sort(getDoubleComparator());
+    ArrayHelper.sort(array, getDoubleComparator());
   }
 
   public static void sort(double[] array, int fromIndex, int toIndex) {
@@ -1250,7 +1248,7 @@ public class Arrays {
   }
 
   public static void sort(float[] array) {
-    ArrayHelper.asNativeArray(array).sort(getDoubleComparator());
+    ArrayHelper.sort(array, getDoubleComparator());
   }
 
   public static void sort(float[] array, int fromIndex, int toIndex) {
@@ -1268,7 +1266,7 @@ public class Arrays {
   }
 
   public static void sort(long[] array) {
-    ArrayHelper.asNativeArray(array).sort(getLongComparator());
+    ArrayHelper.sort(array, getLongComparator());
   }
 
   public static void sort(long[] array, int fromIndex, int toIndex) {
@@ -1700,7 +1698,7 @@ public class Arrays {
    */
   private static void nativeSort(Object array, int fromIndex, int toIndex, CompareFunction fn) {
     Object temp = ArrayHelper.unsafeClone(array, fromIndex, toIndex);
-    ArrayHelper.asNativeArray(temp).sort(fn);
+    ArrayHelper.sort(temp, fn);
     ArrayHelper.copy(temp, 0, array, fromIndex, toIndex - fromIndex);
   }
 
@@ -1708,7 +1706,7 @@ public class Arrays {
    * Sort an entire array of number primitives of integral type.
    */
   private static void nativeIntegerSort(Object array) {
-    ArrayHelper.asNativeArray(array).sort(getIntComparator());
+    ArrayHelper.sort(array, getIntComparator());
   }
 
   /**
