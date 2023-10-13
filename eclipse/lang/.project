@@ -22,14 +22,25 @@
 	</natures>
 	<linkedResources>
 		<link>
-			<name>user</name>
-			<type>2</type>
-			<location>GWT_ROOT/user</location>
-		</link>
-		<link>
 			<name>dev</name>
 			<type>2</type>
-			<location>GWT_ROOT/dev/core</location>
+			<locationURI>GWT_ROOT/dev/core</locationURI>
+		</link>
+		<link>
+			<name>user</name>
+			<type>2</type>
+			<locationURI>GWT_ROOT/user</locationURI>
 		</link>
 	</linkedResources>
+	<filteredResources>
+		<filter>
+			<id>1697218316192</id>
+			<name></name>
+			<type>30</type>
+			<matcher>
+				<id>org.eclipse.core.resources.regexFilterMatcher</id>
+				<arguments>node_modules|\.git|__CREATED_BY_JAVA_LANGUAGE_SERVER__</arguments>
+			</matcher>
+		</filter>
+	</filteredResources>
 </projectDescription>

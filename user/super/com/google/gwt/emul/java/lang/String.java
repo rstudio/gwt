@@ -18,6 +18,7 @@ package java.lang;
 
 import static javaemul.internal.InternalPreconditions.checkCriticalStringBounds;
 import static javaemul.internal.InternalPreconditions.checkNotNull;
+import static javaemul.internal.InternalPreconditions.checkStringBounds;
 import static javaemul.internal.InternalPreconditions.checkStringElementIndex;
 
 import java.io.Serializable;
@@ -27,14 +28,12 @@ import java.nio.charset.UnsupportedCharsetException;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.StringJoiner;
-
 import javaemul.internal.ArrayHelper;
+import javaemul.internal.Coercions;
 import javaemul.internal.EmulatedCharset;
-import javaemul.internal.HashCodes;
 import javaemul.internal.JsUtils;
 import javaemul.internal.NativeRegExp;
 import javaemul.internal.annotations.DoNotInline;
-
 import jsinterop.annotations.JsMethod;
 import jsinterop.annotations.JsNonNull;
 import jsinterop.annotations.JsPackage;
@@ -377,8 +376,8 @@ public final class String implements Comparable<String>, CharSequence,
   public int compareTo(String other) {
     // Trick compiler into thinking that these are double so what we could do arithmetic comparison
     // which is supported on underlying JavaScript strings.
-    double a = JsUtils.unsafeCastToDouble(checkNotNull(this));
-    double b = JsUtils.unsafeCastToDouble(checkNotNull(other));
+    double a = JsUtils.<Double>uncheckedCast(this);
+    double b = JsUtils.<Double>uncheckedCast(other);
     return a == b ? 0 : (a < b ? -1 : 1);
   }
 
@@ -455,7 +454,12 @@ public final class String implements Comparable<String>, CharSequence,
 
   @Override
   public int hashCode() {
-    return HashCodes.getStringHashCode(this);
+    int h = 0;
+    for (int i = 0; i < length(); i++) {
+      // Following is the common hash function '(31 * h + x)' as '(x << 5) - x' equal to '31 * x'.
+      h = Coercions.ensureInt((h << 5) - h + charAt(i));
+    }
+    return h;
   }
 
   public int indexOf(int codePoint) {
@@ -560,7 +564,8 @@ public final class String implements Comparable<String>, CharSequence,
     // treat "$$" as "$".
 
     // Escape regex special characters from literal replacement string.
-    String regex = from.toString().replaceAll("([/\\\\\\.\\*\\+\\?\\|\\(\\)\\[\\]\\{\\}$^])", "\\\\$1");
+    String regex =
+        from.toString().replaceAll("([/\\\\\\.\\*\\+\\?\\|\\(\\)\\[\\]\\{\\}$^])", "\\\\$1");
     // Escape $ since it is for match backrefs and \ since it is used to escape
     // $.
     String replacement = to.toString().replaceAll("\\\\", "\\\\\\\\").replaceAll("\\$", "\\\\$");
@@ -682,10 +687,12 @@ public final class String implements Comparable<String>, CharSequence,
   }
 
   public String substring(int beginIndex) {
+    checkStringElementIndex(beginIndex, length() + 1);
     return asNativeString().substr(beginIndex);
   }
 
   public String substring(int beginIndex, int endIndex) {
+    checkStringBounds(beginIndex, endIndex, length());
     return asNativeString().substr(beginIndex, endIndex - beginIndex);
   }
 
@@ -732,10 +739,6 @@ public final class String implements Comparable<String>, CharSequence,
 
   @Override
   public String toString() {
-    /*
-     * Magic: this method is only used during compiler optimizations; the generated JS will instead alias
-     * this method to the native String.prototype.toString() function.
-     */
     return checkNotNull(this);
   }
 

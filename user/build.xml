@@ -15,16 +15,18 @@
   <property name="emma.merged.out" value="${junit.out}/emma-coverage"/>
 
   <property name="gwt.junit.testcase.web.includes" value="${gwt.junit.testcase.includes}"/>
+  <!-- TODO once we compile with Java >8, update this to exclude tests based on running JDK version -->
   <condition property="gwt.junit.testcase.web.excludes"
             value="**/*JreSuite.class,**/OptimizedOnly*,**/*Java8Suite.class"
-            else="**/*JreSuite.class,**/OptimizedOnly*">
+            else="**/*JreSuite.class,**/OptimizedOnly*,**/*Java8Suite.class">
     <isfalse value="${isJava8}" />
   </condition>
 
   <property name="gwt.junit.testcase.dev.includes" value="${gwt.junit.testcase.includes}"/>
+  <!-- TODO once we compile with Java >8, update this to exclude tests based on running JDK version -->
   <condition property="gwt.junit.testcase.dev.excludes"
-            value="**/JSONSuite.class,**/RunAsyncSuite.class,**/*CompilerSuite.class,**/*JsInteropSuite.class,**/*JreSuite.class,**/OptimizedOnly*,**/*Java8Suite.class"
-            else="**/JSONSuite.class,**/RunAsyncSuite.class,**/*CompilerSuite.class,**/*JsInteropSuite.class,**/*JreSuite.class,**/OptimizedOnly*">
+            value="**/EmulSuite.class,**/JSONSuite.class,**/RunAsyncSuite.class,**/*CompilerSuite.class,**/*JsInteropSuite.class,**/*JreSuite.class,**/OptimizedOnly*,**/*Java8Suite.class"
+            else="**/EmulSuite.class,**/JSONSuite.class,**/RunAsyncSuite.class,**/*CompilerSuite.class,**/*JsInteropSuite.class,**/*JreSuite.class,**/OptimizedOnly*,**/*Java8Suite.class">
     <isfalse value="${isJava8}" />
   </condition>
 
@@ -94,19 +96,22 @@
     <pathelement location="${gwt.tools.lib}/testng/testng-5.14.1-nojunit.jar"/>
     <pathelement location="${gwt.dev.jar}"/>
     <pathelement location="${gwt.tools.lib}/gss/2015-11-04/closure-stylesheets-library-20151104-rebased.jar"/>
+    <pathelement location="${gwt.tools.lib}/jsinterop/jsinterop-annotations-2.0.0.jar"/>
   </path>
 
   <target name="compile" description="Compile all class files"
           unless="compile.complete">
-    <mkdir dir="${javac.out}"/>
-    <gwt.javac excludes="**/EmulatedCharset.java,**/HashCodes.java,**/ConsoleLogger.java,**/NativeRegExp.java,**/SuperDevModeLogger.java">
-      <src path="super/com/google/gwt/emul/javaemul/internal"/>
-      <compilerarg value="-Xep:MissingCasesInEnumSwitch:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:SelfComparison:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:SelfEquals:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:FallThrough:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:ReturnValueIgnored:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:EqualsIncompatibleType:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
+    <gwt.javac
+            excludes="**/EmulatedCharset.java,**/HashCodes.java,**/ConsoleLogger.java,**/NativeRegExp.java,**/SuperDevModeLogger.java"
+            errorprone.args="
+              -Xep:MissingCasesInEnumSwitch:OFF
+              -Xep:SelfComparison:OFF
+              -Xep:SelfEquals:OFF
+              -Xep:FallThrough:OFF
+              -Xep:ReturnValueIgnored:OFF
+              -Xep:EqualsIncompatibleType:OFF
+            ">
+      <src path="super/com/google/gwt/emul/javaemul/internal" />
       <classpath>
         <pathelement location="${gwt.tools.lib}/gss/2015-10-07/closure-stylesheets-library-20151007-rebased.jar"/>
         <pathelement location="${gwt.tools.lib}/gss/2015-11-04/closure-stylesheets-library-20151104-rebased.jar"/>
@@ -145,25 +150,32 @@
       Compiles the test code for this project
   -->
   <target name="compile.tests"
-          depends="-compile.tests.java7, -compile.tests.java8"
+          depends="-compile.tests.java8"
           unless="compile.tests.complete">
   </target>
 
-  <target name="-compile.tests.java7"
-          depends="compile.dev.tests, compile.emma.if.enabled">
-    <mkdir dir="${javac.junit.out}"/>
+  <target name="-compile.tests.java8" if="isJava8" depends="compile.dev.tests, compile.emma.if.enabled">
     <gwt.javac srcdir="test" destdir="${javac.junit.out}"
-               excludes="com/google/gwt/langtest/**,**/super/**,**/java8/**,**/*Java8Suite.java">
-      <compilerarg value="-Xep:MissingCasesInEnumSwitch:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:SelfComparison:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:SelfEquals:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:FallThrough:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:ReturnValueIgnored:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:EqualsIncompatibleType:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:IdentityBinaryExpression:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:LoopConditionChecker:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:JUnitAssertSameCheck:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:CollectionIncompatibleType:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
+               excludes="com/google/gwt/langtest/**,**/super/**"
+               processorpath="test.extraclasspath"
+               errorprone.args="
+                 -Xep:SelfAssignment:OFF
+                 -Xep:MissingCasesInEnumSwitch:OFF
+                 -Xep:SelfComparison:OFF
+                 -Xep:SelfEquals:OFF
+                 -Xep:FallThrough:OFF
+                 -Xep:ReturnValueIgnored:OFF
+                 -Xep:EqualsIncompatibleType:OFF
+                 -Xep:IdentityBinaryExpression:OFF
+                 -Xep:LoopConditionChecker:OFF
+                 -Xep:JUnitAssertSameCheck:OFF
+                 -Xep:CollectionIncompatibleType:OFF
+                 -Xep:DeadThread:OFF
+                 -Xep:ComplexBooleanConstant:OFF
+                 -Xep:ComparableType:OFF
+                 -Xep:DoNotCall:OFF
+                 -Xep:BadAnnotationImplementation:OFF
+               ">
       <classpath>
         <pathelement location="${javac.out}"/>
         <pathelement location="${gwt.tools.lib}/junit/junit-4.8.2.jar"/>
@@ -172,25 +184,6 @@
       </classpath>
       <compilerarg value="-processor"/>
       <compilerarg value="com.google.web.bindery.requestfactory.apt.RfValidator"/>
-    </gwt.javac>
-  </target>
-
-  <target name="-compile.tests.java8" if="isJava8" depends="-compile.tests.java7">
-    <gwt.javac srcdir="test" destdir="${javac.junit.out}" source="1.8" target="1.8"
-               includes="**/java8/**,**/*Java8Suite.java">
-      <compilerarg value="-Xep:MissingCasesInEnumSwitch:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:SelfComparison:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:SelfEquals:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:FallThrough:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:ReturnValueIgnored:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <compilerarg value="-Xep:EqualsIncompatibleType:OFF" compiler="com.google.errorprone.ErrorProneAntCompilerAdapter"/>
-      <classpath>
-        <pathelement location="${javac.junit.out}"/>
-        <pathelement location="${javac.out}"/>
-        <pathelement location="${gwt.tools.lib}/junit/junit-4.8.2.jar"/>
-        <pathelement location="${gwt.tools.lib}/selenium/selenium-java-client-driver.jar"/>
-        <path refid="test.extraclasspath"/>
-      </classpath>
     </gwt.javac>
   </target>
 
