@@ -18,7 +18,6 @@ package com.google.web.bindery.requestfactory.server;
 import com.google.gwt.dev.util.Name;
 import com.google.gwt.dev.util.Name.SourceOrBinaryName;
 import com.google.gwt.dev.util.Util;
-
 import com.google.web.bindery.event.shared.SimpleEventBus;
 import com.google.web.bindery.requestfactory.apt.RfValidator;
 import com.google.web.bindery.requestfactory.apt.ValidationTool;
@@ -806,6 +805,7 @@ public class RequestFactoryJarExtractor {
     SEEDS.put("apt", aptClasses);
     SEEDS.put("client", Collections.unmodifiableList(clientClasses));
     SEEDS.put("server", Collections.unmodifiableList(serverClasses));
+    SEEDS.put("server-jakarta", Collections.unmodifiableList(serverClasses));
 
     Set<Class<?>> all = new LinkedHashSet<Class<?>>();
     for (List<Class<?>> value : SEEDS.values()) {
@@ -1052,6 +1052,7 @@ public class RequestFactoryJarExtractor {
     assert type.getInternalName().charAt(0) != 'L';
     if (type.getInternalName().startsWith("java/") ||
         type.getInternalName().startsWith("javax/") ||
+        type.getInternalName().startsWith("jakarta/") ||
         type.getInternalName().startsWith("com/google/gson/")) {
       return toReturn;
     }

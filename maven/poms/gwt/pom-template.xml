@@ -22,7 +22,7 @@
     </licenses>
     <properties>
       <jetty.version>9.4.44.v20210927</jetty.version>
-      <asm.version>9.2</asm.version>
+      <asm.version>9.6</asm.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -64,6 +64,11 @@
             <dependency>
                 <groupId>org.gwtproject</groupId>
                 <artifactId>gwt-servlet</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.gwtproject</groupId>
+                <artifactId>gwt-servlet-jakarta</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

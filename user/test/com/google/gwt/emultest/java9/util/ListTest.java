@@ -25,6 +25,7 @@ import java.util.List;
  */
 public class ListTest extends EmulTestBase {
 
+  @SuppressWarnings("ReturnValueIgnored")
   public void testOf() {
     assertIsImmutableListOf(List.of());
     assertIsImmutableListOf(List.of("a"), "a");
@@ -83,7 +84,7 @@ public class ListTest extends EmulTestBase {
     assertNPE("of", () -> List.of("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", null));
   }
 
-  protected static void assertIsImmutableListOf(List<String> list, String... contents) {
+  public static void assertIsImmutableListOf(List<String> list, String... contents) {
     assertEquals(contents, list);
 
     // quick test that the list impl is sane

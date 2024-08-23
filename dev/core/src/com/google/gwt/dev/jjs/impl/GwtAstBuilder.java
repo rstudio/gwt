@@ -82,6 +82,7 @@ import com.google.gwt.dev.jjs.ast.JPostfixOperation;
 import com.google.gwt.dev.jjs.ast.JPrefixOperation;
 import com.google.gwt.dev.jjs.ast.JPrimitiveType;
 import com.google.gwt.dev.jjs.ast.JProgram;
+import com.google.gwt.dev.jjs.ast.JRecordType;
 import com.google.gwt.dev.jjs.ast.JReferenceType;
 import com.google.gwt.dev.jjs.ast.JReturnStatement;
 import com.google.gwt.dev.jjs.ast.JStatement;
@@ -94,6 +95,7 @@ import com.google.gwt.dev.jjs.ast.JType;
 import com.google.gwt.dev.jjs.ast.JUnaryOperator;
 import com.google.gwt.dev.jjs.ast.JUnsafeTypeCoercion;
 import com.google.gwt.dev.jjs.ast.JVariable;
+import com.google.gwt.dev.jjs.ast.JVariableRef;
 import com.google.gwt.dev.jjs.ast.JWhileStatement;
 import com.google.gwt.dev.jjs.ast.js.JMultiExpression;
 import com.google.gwt.dev.jjs.ast.js.JsniClassLiteral;
@@ -194,6 +196,7 @@ import org.eclipse.jdt.internal.compiler.ast.Statement;
 import org.eclipse.jdt.internal.compiler.ast.StringLiteral;
 import org.eclipse.jdt.internal.compiler.ast.StringLiteralConcatenation;
 import org.eclipse.jdt.internal.compiler.ast.SuperReference;
+import org.eclipse.jdt.internal.compiler.ast.SwitchExpression;
 import org.eclipse.jdt.internal.compiler.ast.SwitchStatement;
 import org.eclipse.jdt.internal.compiler.ast.SynchronizedStatement;
 import org.eclipse.jdt.internal.compiler.ast.ThisReference;
@@ -220,6 +223,7 @@ import org.eclipse.jdt.internal.compiler.lookup.MethodBinding;
 import org.eclipse.jdt.internal.compiler.lookup.MethodScope;
 import org.eclipse.jdt.internal.compiler.lookup.MethodVerifier;
 import org.eclipse.jdt.internal.compiler.lookup.NestedTypeBinding;
+import org.eclipse.jdt.internal.compiler.lookup.RecordComponentBinding;
 import org.eclipse.jdt.internal.compiler.lookup.ReferenceBinding;
 import org.eclipse.jdt.internal.compiler.lookup.Scope;
 import org.eclipse.jdt.internal.compiler.lookup.SourceTypeBinding;
@@ -537,13 +541,25 @@ public class GwtAstBuilder {
 
     @Override
     public void endVisit(CaseStatement x, BlockScope scope) {
+      if (x.isExpr) {
+        InternalCompilerException exception =
+            new InternalCompilerException("Switch expressions not yet supported");
+        exception.addNode(new JCaseStatement(makeSourceInfo(x), null));
+        throw exception;
+      }
       try {
         SourceInfo info = makeSourceInfo(x);
-        JExpression caseExpression = pop(x.constantExpression);
-        if (caseExpression != null && x.constantExpression.resolvedType.isEnum()) {
-          caseExpression = synthesizeCallToOrdinal(scope, info, caseExpression);
+        if (x.constantExpressions == null) {
+          push(new JCaseStatement(info, null));
+        } else {
+          for (Expression constantExpression : x.constantExpressions) {
+            JExpression caseExpression = pop(constantExpression);
+            if (caseExpression != null && caseExpression.getType().isEnumOrSubclass() != null) {
+              caseExpression = synthesizeCallToOrdinal(scope, info, caseExpression);
+            }
+            push(new JCaseStatement(info, caseExpression));
+          }
         }
-        push(new JCaseStatement(info, caseExpression));
       } catch (Throwable e) {
         throw translateException(x, e);
       }
@@ -638,7 +654,14 @@ public class GwtAstBuilder {
     public void endVisit(ConditionalExpression x, BlockScope scope) {
       try {
         SourceInfo info = makeSourceInfo(x);
-        JType type = typeMap.get(x.resolvedType);
+        JType type;
+        if (x.resolvedType instanceof IntersectionTypeBinding18) {
+          type = typeMap.get(
+                  getFirstNonObjectInIntersection((IntersectionTypeBinding18) x.resolvedType)
+          );
+        } else {
+          type = typeMap.get(x.resolvedType);
+        }
         JExpression valueIfFalse = pop(x.valueIfFalse);
         JExpression valueIfTrue = pop(x.valueIfTrue);
         JExpression condition = pop(x.condition);
@@ -646,6 +669,27 @@ public class GwtAstBuilder {
       } catch (Throwable e) {
         throw translateException(x, e);
       }
+    }
+
+    /**
+     * Returns the first non-Object type in the intersection. As intersections can only contain one
+     * class, and that class must be first, this ensures that if there is a class it will be the
+     * returned type, but if there are only interfaces, the first interface will be selected.
+     * <p></p>
+     * This behavior is consistent with ReferenceMapper.get() with assertions disabled - that is,
+     * where {@code referenceMapper.get(foo)} would fail due to an assertion, if assertions are
+     * disabled then {@code
+     * referenceMapper.get(foo).equals(referenceMapper.get(getFirstNonObjectInIntersection(foo))
+     * } will be true.
+     */
+    private TypeBinding getFirstNonObjectInIntersection(IntersectionTypeBinding18 resolvedType) {
+      for (ReferenceBinding type : resolvedType.intersectingTypes) {
+        if (type != curCud.cud.scope.getJavaLangObject()) {
+          return type;
+        }
+      }
+      throw new IllegalStateException("Type doesn't have a non-java.lang.Object it intersects "
+              + resolvedType);
     }
 
     @Override
@@ -1054,9 +1098,71 @@ public class GwtAstBuilder {
     public void endVisit(InstanceOfExpression x, BlockScope scope) {
       try {
         SourceInfo info = makeSourceInfo(x);
-        JExpression expr = pop(x.expression);
+        JExpression expr;
+        JDeclarationStatement jDeclarationStatement = null;
+        if (x.pattern != null) {
+          jDeclarationStatement = (JDeclarationStatement) pop();
+        }
+        expr = pop(x.expression);
         JReferenceType testType = (JReferenceType) typeMap.get(x.type.resolvedType);
-        push(new JInstanceOf(info, testType, expr));
+
+        if (jDeclarationStatement == null) {
+          push(new JInstanceOf(info, testType, expr));
+        } else {
+          // If <expr> is of type X, then
+          //
+          // rewrite (<expr> instanceof Foo foo)
+          // to
+          // Foo foo;
+          // X $instanceof_1;
+          // (($instanceof_1 = <expr>) instanceof Foo && null != (foo = (Foo) $instanceof_1))
+          //
+          // to avoid side effects from evaluating the original expression twice
+
+          // Foo foo;
+          String patternDeclarationName = jDeclarationStatement.getVariableRef().getTarget()
+              .getName();
+          if (!curMethod.instanceOfDeclarations.containsKey(patternDeclarationName)) {
+            curMethod.body.getBlock().addStmt(0, jDeclarationStatement);
+            curMethod.instanceOfDeclarations.put(patternDeclarationName, jDeclarationStatement);
+          }
+
+          // X $instanceof_1;
+          JType expressionType = typeMap.get(x.expression.resolvedType);
+          JLocal local =
+              createLocal(info, "$instanceOfExpr", expressionType);
+          JDeclarationStatement expressionDeclaration =
+              makeDeclaration(info, local, null);
+          curMethod.body.getBlock().addStmt(0, expressionDeclaration);
+          curMethod.instanceOfDeclarations.put(local.getName(), expressionDeclaration);
+
+          // (Foo) $instanceof_1
+          JVariableRef variableRef = jDeclarationStatement.getVariableRef();
+          JCastOperation jCastOperation =
+              new JCastOperation(info, variableRef.getType(), local.createRef(info));
+
+          // foo = (Foo) $instanceof_1
+          JBinaryOperation assignOperation =
+              new JBinaryOperation(info, variableRef.getType(), JBinaryOperator.ASG, variableRef,
+                  jCastOperation);
+
+          // null != (foo = (Foo) $instanceof_1)
+          JBinaryOperation nullCheckOperation =
+              new JBinaryOperation(info, JPrimitiveType.BOOLEAN, JBinaryOperator.NEQ,
+                  JNullLiteral.INSTANCE, assignOperation);
+
+          // $instanceof_1 = o
+          JBinaryOperation assignLocalOperation =
+              new JBinaryOperation(info, expressionType, JBinaryOperator.ASG, local.createRef(info),
+                  expr);
+
+          // (($instanceof_1 = o) instanceof Foo && null != (foo = (Foo) $instanceof_1))
+          JBinaryOperation rewrittenSwitch =
+              new JBinaryOperation(info, JPrimitiveType.BOOLEAN, JBinaryOperator.AND,
+                  new JInstanceOf(info, testType, assignLocalOperation), nullCheckOperation);
+
+          push(rewrittenSwitch);
+        }
       } catch (Throwable e) {
         throw translateException(x, e);
       }
@@ -2507,6 +2613,14 @@ public class GwtAstBuilder {
     }
 
     @Override
+    public boolean visit(SwitchExpression x, BlockScope blockScope) {
+      InternalCompilerException exception =
+          new InternalCompilerException("Switch expressions not yet supported");
+      exception.addNode(new JCaseStatement(makeSourceInfo(x), null));
+      throw exception;
+    }
+
+    @Override
     public boolean visit(LocalDeclaration x, BlockScope scope) {
       try {
         createLocal(x);
@@ -2941,7 +3055,13 @@ public class GwtAstBuilder {
       TypeBinding resolvedType = x.type.resolvedType;
       JType localType;
       if (resolvedType.constantPoolName() != null) {
-        localType = typeMap.get(resolvedType);
+        if (resolvedType instanceof IntersectionTypeBinding18) {
+          localType = typeMap.get(
+                  getFirstNonObjectInIntersection((IntersectionTypeBinding18) resolvedType)
+          );
+        } else {
+          localType = typeMap.get(resolvedType);
+        }
       } else {
         // Special case, a statically unreachable local type.
         localType = JReferenceType.NULL_TYPE;
@@ -3195,13 +3315,13 @@ public class GwtAstBuilder {
       List<JExpression> args = pop(arguments);
       for (int i = 0; i < args.size(); i++) {
         // Account for varargs parameter.
-        int parameterIndex = Math.min(i, methodBinding.parameters.length - 1);
+        int parameterIndex = Math.min(i, methodBinding.original().parameters.length - 1);
         args.set(i, maybeBoxOrUnbox(
             args.get(i),
             arguments[i].implicitConversion,
             isDoNotAutoBoxParameter(methodBinding, parameterIndex)));
       }
-      if (!methodBinding.isVarargs()) {
+      if (!methodBinding.original().isVarargs()) {
         return args;
       }
 
@@ -3211,7 +3331,8 @@ public class GwtAstBuilder {
         args = Lists.newArrayListWithCapacity(1);
       }
 
-      TypeBinding[] params = methodBinding.parameters;
+      TypeBinding[] params = methodBinding.isVarargs() ? methodBinding.parameters :
+              methodBinding.original().parameters;
       int varArg = params.length - 1;
 
       // See if there's a single varArg which is already an array.
@@ -3672,7 +3793,6 @@ public class GwtAstBuilder {
       }
     }
 
-
     private boolean isFunctionalInterfaceWithMethod(ReferenceBinding referenceBinding, Scope scope,
         String samSignature) {
       if (!referenceBinding.isInterface()) {
@@ -3787,8 +3907,9 @@ public class GwtAstBuilder {
     public final Map<LocalVariableBinding, JVariable> locals = Maps.newIdentityHashMap();
     public final JMethod method;
     public final MethodScope scope;
+    public final Map<String, JStatement> instanceOfDeclarations = Maps.newHashMap();
 
-    public MethodInfo(JMethod method, JMethodBody methodBody, MethodScope methodScope) {
+    MethodInfo(JMethod method, JMethodBody methodBody, MethodScope methodScope) {
       this.method = method;
       this.body = methodBody;
       this.scope = methodScope;
@@ -4058,8 +4179,14 @@ public class GwtAstBuilder {
               getFieldDisposition(binding), AccessModifier.fromFieldBinding(binding));
     }
     enclosingType.addField(field);
-    JsInteropUtil.maybeSetJsInteropProperties(field, shouldExport(field), x.annotations);
-    processSuppressedWarnings(field, x.annotations);
+    if (x.isARecordComponent) {
+      // Skip setting jsinterop properties on record component fields
+      RecordComponentBinding component = ((SourceTypeBinding) binding.declaringClass).getRecordComponent(x.name);
+      processSuppressedWarnings(field, component.sourceRecordComponent().annotations);
+    } else {
+      JsInteropUtil.maybeSetJsInteropProperties(field, shouldExport(field), x.annotations);
+      processSuppressedWarnings(field, x.annotations);
+    }
     typeMap.setField(binding, field);
   }
 
@@ -4068,7 +4195,7 @@ public class GwtAstBuilder {
     JDeclaredType type = (JDeclaredType) typeMap.get(binding);
     SourceInfo info = type.getSourceInfo();
     try {
-      /**
+      /*
        * We emulate static initializers and instance initializers as methods. As
        * in other cases, this gives us: simpler AST, easier to optimize, more
        * like output JavaScript. Clinit is always in slot 0, init (if it exists)
@@ -4121,6 +4248,35 @@ public class GwtAstBuilder {
         for (AbstractMethodDeclaration method : x.methods) {
           createMethod(method);
         }
+      }
+
+      if (x.isRecord()) {
+        // build implicit record component accessor methods, JDT doesn't declare them
+        for (JField field : type.getFields()) {
+          // Create a method binding that corresponds to the method we are creating, jdt won't
+          // offer us one unless it was defined in source.
+          char[] fieldName = field.getName().toCharArray();
+          MethodBinding recordComponentAccessor = binding.getExactMethod(
+                  fieldName, new TypeBinding[0], curCud.scope);
+
+          // Get the record component, and pass on any annotations meant for the method
+          JMethod componentMethod = typeMap.get(recordComponentAccessor);
+          RecordComponentBinding component = binding.getRecordComponent(fieldName);
+          processAnnotations(component.sourceRecordComponent().annotations, componentMethod);
+        }
+
+        // At this time, we need to be sure a binding exists, either because the record declared
+        // its own, or we make one specifically for it.
+        MethodBinding toStringBinding = binding.getExactMethod(
+                TO_STRING_METHOD_NAME.toCharArray(), Binding.NO_TYPES, curCud.scope);
+        typeMap.get(toStringBinding);
+        TypeBinding[] equalsArgs = {x.scope.getJavaLangObject()};
+        MethodBinding equalsBinding = binding.getExactMethod(
+                EQUALS_METHOD_NAME.toCharArray(), equalsArgs, curCud.scope);
+        typeMap.get(equalsBinding);
+        MethodBinding hashcodeBinding = binding.getExactMethod(
+                HASHCODE_METHOD_NAME.toCharArray(), Binding.NO_TYPES, curCud.scope);
+        typeMap.get(hashcodeBinding);
       }
 
       if (x.memberTypes != null) {
@@ -4229,17 +4385,16 @@ public class GwtAstBuilder {
     }
 
     enclosingType.addMethod(method);
-    processAnnotations(x, method);
+    processAnnotations(x.annotations, method);
     typeMap.setMethod(b, method);
   }
 
-  private void processAnnotations(AbstractMethodDeclaration x,
-      JMethod method) {
-    maybeAddMethodSpecialization(x, method);
-    maybeSetInliningMode(x, method);
-    maybeSetHasNoSideEffects(x, method);
-    JsInteropUtil.maybeSetJsInteropProperties(method, shouldExport(method), x.annotations);
-    processSuppressedWarnings(method, x.annotations);
+  private void processAnnotations(Annotation[] annotations, JMethod method) {
+    maybeAddMethodSpecialization(annotations, method);
+    maybeSetInliningMode(annotations, method);
+    maybeSetHasNoSideEffects(annotations, method);
+    JsInteropUtil.maybeSetJsInteropProperties(method, shouldExport(method), annotations);
+    processSuppressedWarnings(method, annotations);
   }
 
   private void processAnnotations(JParameter parameter, Annotation... annotations) {
@@ -4247,7 +4402,7 @@ public class GwtAstBuilder {
     processSuppressedWarnings(parameter, annotations);
   }
 
-  private void processSuppressedWarnings(CanHaveSuppressedWarnings x, Annotation... annotations) {
+  private static void processSuppressedWarnings(CanHaveSuppressedWarnings x, Annotation... annotations) {
     x.setSuppressedWarnings(JdtUtil.getSuppressedWarnings(annotations));
   }
 
@@ -4259,26 +4414,26 @@ public class GwtAstBuilder {
     return false;
   }
 
-  private static void maybeSetInliningMode(AbstractMethodDeclaration x, JMethod method) {
+  private static void maybeSetInliningMode(Annotation[] annotations, JMethod method) {
     if (JdtUtil.getAnnotationByName(
-        x.annotations, "javaemul.internal.annotations.DoNotInline") != null) {
+        annotations, "javaemul.internal.annotations.DoNotInline") != null) {
       method.setInliningMode(InliningMode.DO_NOT_INLINE);
     } else if (JdtUtil.getAnnotationByName(
-        x.annotations, "javaemul.internal.annotations.ForceInline") != null) {
+        annotations, "javaemul.internal.annotations.ForceInline") != null) {
       method.setInliningMode(InliningMode.FORCE_INLINE);
     }
   }
 
-  private static void maybeSetHasNoSideEffects(AbstractMethodDeclaration x, JMethod method) {
+  private static void maybeSetHasNoSideEffects(Annotation[] annotations, JMethod method) {
     if (JdtUtil.getAnnotationByName(
-        x.annotations, "javaemul.internal.annotations.HasNoSideEffects") != null) {
+        annotations, "javaemul.internal.annotations.HasNoSideEffects") != null) {
       method.setHasSideEffects(false);
     }
   }
 
-  private void maybeAddMethodSpecialization(AbstractMethodDeclaration x, JMethod method) {
+  private void maybeAddMethodSpecialization(Annotation[] annotations, JMethod method) {
     AnnotationBinding specializeAnnotation = JdtUtil.getAnnotationByName(
-        x.annotations, "javaemul.internal.annotations.SpecializeMethod");
+        annotations, "javaemul.internal.annotations.SpecializeMethod");
     if (specializeAnnotation == null) {
       return;
     }
@@ -4357,8 +4512,12 @@ public class GwtAstBuilder {
 
       JDeclaredType type;
       if (binding.isClass()) {
-        type = new JClassType(
-            info, name, binding.isAbstract(), binding.isFinal() || binding.isAnonymousType());
+        if (binding.isRecord()) {
+          type = new JRecordType(info, name);
+        } else {
+          type = new JClassType(
+                  info, name, binding.isAbstract(), binding.isFinal() || binding.isAnonymousType());
+        }
       } else if (binding.isInterface() || binding.isAnnotationType()) {
         type = new JInterfaceType(info, name);
       } else if (binding.isEnum()) {
