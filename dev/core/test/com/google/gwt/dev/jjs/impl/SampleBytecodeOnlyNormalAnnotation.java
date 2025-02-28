@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Google Inc.
+ * Copyright 2024 GWT Project Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -11,17 +11,12 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.google.gwt.dev.util.arg;
-
-import com.google.gwt.util.tools.ArgHandlerNoopDeprecatedFlag;
+package com.google.gwt.dev.jjs.impl;
 
 /**
- * Toggles the display of overlapping source include warnings (during monolithic compiles).
+ * Annotation with no bytecode for GWT, and multiple members.
  */
-@Deprecated
-public final class ArgHandlerOverlappingSourceWarnings extends ArgHandlerNoopDeprecatedFlag {
-
-  public ArgHandlerOverlappingSourceWarnings() {
-    super(0, "overlappingSourceWarnings");
-  }
+public @interface SampleBytecodeOnlyNormalAnnotation {
+  int a();
+  int b();
 }

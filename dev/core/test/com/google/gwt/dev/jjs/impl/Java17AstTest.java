@@ -15,7 +15,6 @@ package com.google.gwt.dev.jjs.impl;
 
 import com.google.gwt.core.ext.UnableToCompleteException;
 import com.google.gwt.dev.javac.testing.impl.JavaResourceBase;
-import com.google.gwt.dev.jjs.InternalCompilerException;
 import com.google.gwt.dev.jjs.ast.JAbstractMethodBody;
 import com.google.gwt.dev.jjs.ast.JDeclaredType;
 import com.google.gwt.dev.jjs.ast.JInterfaceType;
@@ -140,24 +139,14 @@ public class Java17AstTest extends FullCompileTestBase {
     compileSnippet("void", "Point rectangle = new Point(0, 0);");
   }
 
-  public void testSwitchExpressionsNotSupported() {
-    try {
-      compileSnippet("void", "var month = Months.JUNE;" +
-          "var result = switch(month) {\n" +
-          "    case JANUARY, JUNE, JULY -> 3;\n" +
-          "    case FEBRUARY, SEPTEMBER, OCTOBER, NOVEMBER, DECEMBER -> 1;\n" +
-          "    case MARCH, MAY, APRIL, AUGUST -> 2;\n" +
-          "    default -> 0;" +
-          "};");
-      fail("Compile should have failed but succeeded, switch expression is not supported.");
-    } catch (Exception e) {
-      if (!(e.getCause() instanceof InternalCompilerException)
-          && !(e instanceof InternalCompilerException)) {
-        e.printStackTrace();
-        fail();
-      }
-      assertEquals("Switch expressions not yet supported", e.getMessage());
-    }
+  public void testSwitchExpressions() throws UnableToCompleteException {
+    compileSnippet("void", "var month = Months.JUNE;" +
+        "var result = switch(month) {\n" +
+        "    case JANUARY, JUNE, JULY -> 3;\n" +
+        "    case FEBRUARY, SEPTEMBER, OCTOBER, NOVEMBER, DECEMBER -> 1;\n" +
+        "    case MARCH, MAY, APRIL, AUGUST -> 2;\n" +
+        "    default -> 0;" +
+        "};");
   }
 
   public void testInstanceOfPatternMatching() throws UnableToCompleteException {
@@ -248,23 +237,13 @@ public class Java17AstTest extends FullCompileTestBase {
             "($instanceOfExpr_6 = shape2) instanceof Square && null != (square = (Square) $instanceOfExpr_6)"));
   }
 
-  public void testSwitchExpressionsInitializerShouldFail() {
-    try {
-      compileSnippet("void", "    int i = switch(1) {\n" +
-          "      case 1:\n" +
-          "        yield 2;\n" +
-          "      default:\n" +
-          "        yield 7;\n" +
-          "    };");
-      fail("Compile should have failed but succeeded, switch expressions as initializer should fail.");
-    } catch (Exception e) {
-      if (!(e.getCause() instanceof InternalCompilerException)
-          && !(e instanceof InternalCompilerException)) {
-        e.printStackTrace();
-        fail();
-      }
-      assertEquals("Switch expressions not yet supported", e.getMessage());
-    }
+  public void testSwitchExpressionsWithYield() throws UnableToCompleteException {
+    compileSnippet("void", "    int i = switch(1) {\n" +
+        "      case 1:\n" +
+        "        yield 2;\n" +
+        "      default:\n" +
+        "        yield 7;\n" +
+        "    };");
   }
 
   public void testInstanceOfPatternMatchingWithCondition() throws UnableToCompleteException {
@@ -416,6 +395,65 @@ public class Java17AstTest extends FullCompileTestBase {
           "if(a instanceof CharSequence p) {\n" +
           "     int b= p.length();\n" +
           "}");
+  }
+
+  // The JDT ast nodes for both switch statements and expressions extend Expression, and specific
+  // ast builder traversals previously. Test switch expressions/statements where statements/blocks
+  // can be encountered.
+  public void testSwitchesWithoutBlocks() throws UnableToCompleteException {
+    compileSnippet("void",
+        "for (int i = 0; i < 10; i++) " +
+            "  switch(i) { " +
+            "    case 1: break;" +
+            "    case 2: " +
+            "    default:" +
+            "  }");
+    compileSnippet("void",
+        "for (int i : new int[] {1, 2, 3, 4}) " +
+            "  switch(i) { " +
+            "    case 1:" +
+            "    case 2:" +
+            "    default:" +
+            "  }");
+    compileSnippet("void",
+        "switch (4) {" +
+            "case 1:" +
+            "  switch (2) {" +
+            "    case 2:" +
+            "    case 4:" +
+            "    default:" +
+            "  }" +
+            "}");
+    compileSnippet("void",
+        "if (true == false) " +
+            "  switch (7) {" +
+            "    case 4: {" +
+            "      break;" +
+            "    }" +
+            "  }" +
+            "else " +
+            "  switch (8) {" +
+            "    case 9:" +
+            "  }");
+
+    compileSnippet("void",
+        "while(true)" +
+            "  switch(99) { " +
+            "    default:" +
+            "  }");
+
+    compileSnippet("void",
+        "do" +
+            "  switch(0) { " +
+            "    default:" +
+            "  }" +
+            "while (false);");
+
+    compileSnippet("void",
+        "foo:" +
+            "  switch(123) { " +
+            "    default:" +
+            "  }");
   }
 
   @Override

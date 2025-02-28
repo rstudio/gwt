@@ -154,9 +154,7 @@ public class ImplementRecordComponents {
     JMethodBody body = new JMethodBody(info);
     JParameter otherParam = method.getParams().get(0);
 
-    // Equals is built from first == check between this and other, as a fast path for the same
-    // object and also to ensure that other isn't null. Then MyRecord.class == other.getClass(),
-    // and now we know they're the same type and can cast safely to access fields for the rest.
+    // if (this == other) return true;
     JBinaryOperation eq =
             new JBinaryOperation(info, JPrimitiveType.BOOLEAN, JBinaryOperator.EQ,
                     new JThisRef(info, type),
@@ -164,11 +162,22 @@ public class ImplementRecordComponents {
     body.getBlock().addStmt(new JIfStatement(info, eq,
             JBooleanLiteral.TRUE.makeReturnStatement(), null));
 
+    // other == null
+    JBinaryOperation nonNullCheck =
+            new JBinaryOperation(info, JPrimitiveType.BOOLEAN, JBinaryOperator.EQ,
+                    otherParam.createRef(info), JNullLiteral.INSTANCE);
+    // MyRecordType.class != other.getClass()
     JBinaryOperation sameTypeCheck =
             new JBinaryOperation(info, JPrimitiveType.BOOLEAN, JBinaryOperator.NEQ,
                     new JClassLiteral(info, type),
                     new JMethodCall(info, otherParam.createRef(info), getClassMethod));
-    body.getBlock().addStmt(new JIfStatement(info, sameTypeCheck,
+    // other == null || MyRecordType.class != other.getClass()
+    JBinaryOperation nullAndTypeCheck =
+            new JBinaryOperation(info, JPrimitiveType.BOOLEAN, JBinaryOperator.OR,
+                    nonNullCheck, sameTypeCheck);
+
+    // if (other == null || MyRecordType.class != other.getClass()) return false;
+    body.getBlock().addStmt(new JIfStatement(info, nullAndTypeCheck,
             JBooleanLiteral.FALSE.makeReturnStatement(), null));
 
     // Create a local to assign to and compare each component
@@ -193,13 +202,16 @@ public class ImplementRecordComponents {
                   myField,
                   otherField);
         } else {
-          // we would like to use Objects.equals here to be more consise, but we would need
+          // We would like to use Objects.equals here to be more concise, but we would need
           // to look up the right impl based on the field - just as simple to insert a null check
           // and get it a little closer to all being inlined away
+
+          // Make another field ref to call equals() on
+          JFieldRef myField2 = new JFieldRef(info, new JThisRef(info, type), field, type);
           equals = new JBinaryOperation(info, JPrimitiveType.BOOLEAN, JBinaryOperator.AND,
                   new JBinaryOperation(info, JPrimitiveType.BOOLEAN, JBinaryOperator.NEQ,
                           myField, JNullLiteral.INSTANCE),
-                  new JMethodCall(info, myField, objectEquals, otherField));
+                  new JMethodCall(info, myField2, objectEquals, otherField));
         }
         if (componentCheck != JBooleanLiteral.TRUE) {
           componentCheck = new JBinaryOperation(info, JPrimitiveType.BOOLEAN,

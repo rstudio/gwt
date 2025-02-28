@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 Google Inc.
+ * Copyright 2024 GWT Project Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -11,22 +11,10 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.google.gwt.dev.util.arg;
-
-import com.google.gwt.util.tools.ArgHandlerNoopDeprecatedFlag;
+package com.google.gwt.dev.jjs.impl;
 
 /**
- * An argument handler for specifying the path for the generated precompiled library file.
+ * Annotation with no bytecode for GWT, and no members.
  */
-@Deprecated
-public class ArgHandlerOutputLibrary extends ArgHandlerNoopDeprecatedFlag {
-
-  public ArgHandlerOutputLibrary() {
-    super(1, "outLibrary", "library");
-  }
-
-  @Override
-  public boolean isExperimental() {
-    return true;
-  }
+public @interface SampleBytecodeOnlyMarkerAnnotation {
 }

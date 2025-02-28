@@ -38,7 +38,6 @@ import com.google.gwt.dev.jjs.JsOutputOption;
 import com.google.gwt.dev.shell.jetty.JettyLauncher;
 import com.google.gwt.dev.util.arg.ArgHandlerClosureFormattedOutput;
 import com.google.gwt.dev.util.arg.ArgHandlerDeployDir;
-import com.google.gwt.dev.util.arg.ArgHandlerDeprecatedDisableUpdateCheck;
 import com.google.gwt.dev.util.arg.ArgHandlerDeprecatedOptimizeDataflow;
 import com.google.gwt.dev.util.arg.ArgHandlerDisableCastChecking;
 import com.google.gwt.dev.util.arg.ArgHandlerDisableClassMetadata;
@@ -61,6 +60,7 @@ import com.google.gwt.dev.util.arg.ArgHandlerOptimize;
 import com.google.gwt.dev.util.arg.ArgHandlerScriptStyle;
 import com.google.gwt.dev.util.arg.ArgHandlerSetProperties;
 import com.google.gwt.dev.util.arg.ArgHandlerSourceLevel;
+import com.google.gwt.dev.util.arg.ArgHandlerStrict;
 import com.google.gwt.dev.util.arg.ArgHandlerWarDir;
 import com.google.gwt.dev.util.arg.ArgHandlerWorkDirOptional;
 import com.google.gwt.junit.JUnitMessageQueue.ClientStatus;
@@ -291,7 +291,6 @@ public class JUnitShell extends DevMode {
       registerHandler(new ArgHandlerDisableOrdinalizeEnums(options));
       registerHandler(new ArgHandlerDisableRemoveDuplicateFunctions(options));
       registerHandler(new ArgHandlerDisableRunAsync(options));
-      registerHandler(new ArgHandlerDeprecatedDisableUpdateCheck());
       registerHandler(new ArgHandlerDraftCompile(options));
       registerHandler(new ArgHandlerLocalWorkers(options));
       registerHandler(new ArgHandlerNamespace(options));
@@ -301,6 +300,7 @@ public class JUnitShell extends DevMode {
       registerHandler(new ArgHandlerFilterJsInteropExports(options));
       registerHandler(new ArgHandlerSetProperties(options));
       registerHandler(new ArgHandlerClosureFormattedOutput(options));
+      registerHandler(new ArgHandlerStrict(options));
 
       /*
        * ----- Options specific to JUnitShell -----

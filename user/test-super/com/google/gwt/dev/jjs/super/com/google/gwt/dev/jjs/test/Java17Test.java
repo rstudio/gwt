@@ -171,6 +171,8 @@ public class Java17Test extends GWTTestCase {
     assertFalse(0 == new TopLevelRecord("Pear", 0).hashCode());
 
     assertFalse(new InnerRecord().equals(new LocalRecord()));
+    assertFalse(new InnerRecord().equals(null));
+    assertFalse(new LocalRecord().equals(null));
 
     RecordWithReferenceType sameA = new RecordWithReferenceType(new TopLevelRecord("a", 1));
     RecordWithReferenceType sameB = new RecordWithReferenceType(new TopLevelRecord("a", 1));
@@ -184,6 +186,8 @@ public class Java17Test extends GWTTestCase {
 
     assertFalse(sameA.equals(different));
     assertFalse(sameA.hashCode() == different.hashCode());
+
+    assertFalse(sameA.equals(null));
   }
 
   /**
@@ -383,8 +387,157 @@ public class Java17Test extends GWTTestCase {
   public void testNegativeInstanceOfPatternOutsideIfScope() {
     Object bar = new Bar();
     if (!(bar instanceof Bar b)) {
-     throw new RuntimeException();
+      throw new RuntimeException();
     }
     assertTrue(b.isSquare());
+  }
+
+  public void testSwitchExpressionOnConstant() {
+    int value = switch(0) {
+      default -> 17;
+    };
+    assertEquals(17, value);
+  }
+
+  public void testSwitchWithMultipleCaseValues() {
+    for (int i = 0; i < 5; i++) {
+      boolean reachedDefault = false;
+      boolean isEven = switch(i) {
+        case 0, 2:
+          yield true;
+        case 1, 3, 5:
+          yield false;
+        default:// default is required for switch exprs, and we will hit it for 4
+          reachedDefault = true;
+          yield true;
+      };
+      assertEquals(i == 4, reachedDefault);
+      assertEquals("" + i, i % 2 == 0, isEven);
+    }
+  }
+
+  public void testSwitchInSubExpr() {
+    double value = Math.random();// non-constant value between 0 and 1
+    boolean notCalled = true;
+    if ((int) value % 5 == 3 && switch ((int) value / 5) {
+      case 4:
+        notCalled = false;
+        yield true;
+      default:
+        notCalled = false;
+        yield false;
+    }) {
+      fail("should not be reached");
+    }
+    assertTrue(notCalled);
+
+    double result = (int) value % 7 == 2 ?
+            switch((int)value / 7) {
+              case 1:
+                notCalled = false;
+                yield 1.0;
+              default:
+                notCalled = false;
+                yield 2.0;
+            }
+            : 4.0;
+    assertTrue(notCalled);
+  }
+
+  public void testSwitchExprInlining() {
+    enum HasSwitchMethod {
+      A, RED, SUNDAY, JANUARY, ZERO;
+      public static final int which(HasSwitchMethod whichSwitch) {
+        return switch(whichSwitch) {
+          case A -> 1;
+          case RED -> 2;
+          case SUNDAY, JANUARY -> 4;
+          case ZERO -> 5;
+        };
+      }
+      public static final int pick(HasSwitchMethod whichSwitch) {
+        return 2 * switch(whichSwitch) {
+          case A -> 1;
+          case RED -> 2;
+          case SUNDAY, JANUARY -> 4;
+          case ZERO -> 5;
+        };
+      }
+      public static final String select(HasSwitchMethod whichSwitch) {
+        if (Math.random() > 2) {
+          return "none";
+        }
+        return switch(whichSwitch) {
+          case A -> "1";
+          case RED -> "2";
+          case SUNDAY, JANUARY -> "4";
+          case ZERO -> "5";
+        };
+      }
+    }
+
+    HasSwitchMethod uninlinedValue = Math.random() > 2 ? HasSwitchMethod.A : HasSwitchMethod.RED;
+    assertEquals(2, HasSwitchMethod.which(uninlinedValue));
+    assertEquals(4, HasSwitchMethod.pick(uninlinedValue));
+    assertEquals("hello 2", "hello " + HasSwitchMethod.select(uninlinedValue));
+  }
+
+  private static final String ONE = "1";
+  private static final String TWO = "2";
+  private static final String FOUR = "4";
+
+  public void testInlinedStringConstantsInCase() {
+    int value = switch(Math.random() > 2 ? "2" : "4") {
+      case ONE, TWO -> 2;
+      case FOUR -> 4;
+      default -> 0;
+    };
+    assertEquals(4, value);
+  }
+
+  // https://github.com/gwtproject/gwt/issues/10044
+  public void testCaseArrowLabelsVoidExpression() {
+    // Each switch is extracted to its own method to avoid the early return bug.
+    assertEquals("success", arrowWithVoidExpr());
+
+    // Arrow with non-void expr
+    assertEquals("success", arrowWithStringExpr());
+    assertEquals("success", arrowWithIntExpr());
+
+    // Arrow with a statement - doesn't fail as part of this bug. This exists to verify
+    // that JDT won't give us a yield with a statement somehow.
+    assertEquals("success", arrowWithStatement());
+  }
+
+  private static String arrowWithVoidExpr() {
+    switch(0) {
+      case 0 -> assertTrue(true);
+    };
+    return "success";
+  }
+
+  private static String arrowWithStringExpr() {
+    switch(0) {
+      case 0 -> new Object().toString();
+    };
+    return "success";
+  }
+
+  private static String arrowWithIntExpr() {
+    switch(0) {
+      case 0 -> new Object().hashCode();
+    };
+    return "success";
+  }
+
+  private static String arrowWithStatement() {
+    switch(0) {
+      case 0 -> {
+        if (true) {
+          new Object().toString();
+        }
+      }
+    };
+    return "success";
   }
 }

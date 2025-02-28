@@ -119,6 +119,7 @@ import com.google.gwt.dev.jjs.impl.ResolveRuntimeTypeReferences.TypeOrder;
 import com.google.gwt.dev.jjs.impl.RewriteConstructorCallsForUnboxedTypes;
 import com.google.gwt.dev.jjs.impl.SameParameterValueOptimizer;
 import com.google.gwt.dev.jjs.impl.SourceInfoCorrelator;
+import com.google.gwt.dev.jjs.impl.SplitCaseStatementValues;
 import com.google.gwt.dev.jjs.impl.TypeCoercionNormalizer;
 import com.google.gwt.dev.jjs.impl.TypeReferencesRecorder;
 import com.google.gwt.dev.jjs.impl.TypeTightener;
@@ -493,6 +494,7 @@ public final class JavaToJavaScriptCompiler {
       LongCastNormalizer.exec(jprogram);
       LongEmulationNormalizer.exec(jprogram);
       TypeCoercionNormalizer.exec(jprogram);
+      SplitCaseStatementValues.exec(jprogram);
 
       if (options.isIncrementalCompileEnabled()) {
         // Per file compilation reuses type JS even as references (like casts) in other files
@@ -576,18 +578,6 @@ public final class JavaToJavaScriptCompiler {
       ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
       int expectedFragmentCount = options.getFragmentCount();
-      // -1 is the default value, we trap 0 just in case (0 is not a legal value in any case)
-      if (expectedFragmentCount <= 0) {
-        // Fragment count not set check fragments merge.
-        int numberOfMerges = options.getFragmentsMerge();
-        if (numberOfMerges > 0) {
-          // + 1 for left over, + 1 for initial gave us the total number
-          // of fragments without splitting.
-          expectedFragmentCount =
-              Math.max(0, jprogram.getRunAsyncs().size() + 2 - numberOfMerges);
-        }
-      }
-
       int minFragmentSize = properties.getConfigurationProperties()
           .getInteger(CodeSplitters.MIN_FRAGMENT_SIZE, 0);
 
