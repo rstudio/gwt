@@ -84,6 +84,7 @@ import com.google.gwt.dev.jjs.impl.HandleCrossFragmentReferences;
 import com.google.gwt.dev.jjs.impl.ImplementCastsAndTypeChecks;
 import com.google.gwt.dev.jjs.impl.ImplementClassLiteralsAsFields;
 import com.google.gwt.dev.jjs.impl.ImplementJsVarargs;
+import com.google.gwt.dev.jjs.impl.ImplementRecordComponents;
 import com.google.gwt.dev.jjs.impl.JavaAstVerifier;
 import com.google.gwt.dev.jjs.impl.JavaToJavaScriptMap;
 import com.google.gwt.dev.jjs.impl.JjsUtils;
@@ -118,6 +119,7 @@ import com.google.gwt.dev.jjs.impl.ResolveRuntimeTypeReferences.TypeOrder;
 import com.google.gwt.dev.jjs.impl.RewriteConstructorCallsForUnboxedTypes;
 import com.google.gwt.dev.jjs.impl.SameParameterValueOptimizer;
 import com.google.gwt.dev.jjs.impl.SourceInfoCorrelator;
+import com.google.gwt.dev.jjs.impl.SplitCaseStatementValues;
 import com.google.gwt.dev.jjs.impl.TypeCoercionNormalizer;
 import com.google.gwt.dev.jjs.impl.TypeReferencesRecorder;
 import com.google.gwt.dev.jjs.impl.TypeTightener;
@@ -492,6 +494,7 @@ public final class JavaToJavaScriptCompiler {
       LongCastNormalizer.exec(jprogram);
       LongEmulationNormalizer.exec(jprogram);
       TypeCoercionNormalizer.exec(jprogram);
+      SplitCaseStatementValues.exec(jprogram);
 
       if (options.isIncrementalCompileEnabled()) {
         // Per file compilation reuses type JS even as references (like casts) in other files
@@ -575,18 +578,6 @@ public final class JavaToJavaScriptCompiler {
       ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
       int expectedFragmentCount = options.getFragmentCount();
-      // -1 is the default value, we trap 0 just in case (0 is not a legal value in any case)
-      if (expectedFragmentCount <= 0) {
-        // Fragment count not set check fragments merge.
-        int numberOfMerges = options.getFragmentsMerge();
-        if (numberOfMerges > 0) {
-          // + 1 for left over, + 1 for initial gave us the total number
-          // of fragments without splitting.
-          expectedFragmentCount =
-              Math.max(0, jprogram.getRunAsyncs().size() + 2 - numberOfMerges);
-        }
-      }
-
       int minFragmentSize = properties.getConfigurationProperties()
           .getInteger(CodeSplitters.MIN_FRAGMENT_SIZE, 0);
 
@@ -1156,6 +1147,8 @@ public final class JavaToJavaScriptCompiler {
       // Replace calls to native overrides of object methods.
       ReplaceCallsToNativeJavaLangObjectOverrides.exec(jprogram);
 
+      ImplementRecordComponents.exec(jprogram);
+
       FixAssignmentsToUnboxOrCast.exec(jprogram);
       if (options.isEnableAssertions()) {
         AssertionNormalizer.exec(jprogram);
@@ -1201,6 +1194,7 @@ public final class JavaToJavaScriptCompiler {
     }
 
     EntryMethodHolderGenerator entryMethodHolderGenerator = new EntryMethodHolderGenerator();
+    context.setCurrentGenerator(EntryMethodHolderGenerator.class);
     String entryMethodHolderTypeName =
         entryMethodHolderGenerator.generate(logger, context, module.getCanonicalName());
     context.finish(logger);

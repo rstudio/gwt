@@ -47,8 +47,10 @@ function setupInstallLocation() {
   // throwing away the current document.
   //
   // In IE, it ensures that the <body> element is immediately available.
-  frameDoc.open();
-  var doctype = (document.compatMode == 'CSS1Compat') ? '<!doctype html>' : '';
-  frameDoc.write(doctype + '<html><head></head><body></body></html>');
-  frameDoc.close();
+  if (navigator.userAgent.indexOf("Chrome") == -1) {
+    frameDoc.open();
+    var doctype = (document.compatMode == 'CSS1Compat') ? '<!doctype html>' : '';
+    frameDoc.write(doctype + '<html><head></head><body></body></html>');
+    frameDoc.close();
+  }
 }
