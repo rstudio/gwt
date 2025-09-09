@@ -13,6 +13,8 @@
  */
 package com.google.gwt.dev.jjs;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import com.google.gwt.core.ext.TreeLogger;
 import com.google.gwt.core.ext.UnableToCompleteException;
 import com.google.gwt.core.ext.linker.Artifact;
@@ -172,7 +174,6 @@ import com.google.gwt.dev.util.DefaultTextOutput;
 import com.google.gwt.dev.util.Memory;
 import com.google.gwt.dev.util.Name.SourceName;
 import com.google.gwt.dev.util.Pair;
-import com.google.gwt.dev.util.Util;
 import com.google.gwt.dev.util.arg.OptionOptimize;
 import com.google.gwt.dev.util.log.speedtracer.CompilerEventType;
 import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger;
@@ -184,6 +185,8 @@ import com.google.gwt.thirdparty.guava.common.collect.Iterables;
 import com.google.gwt.thirdparty.guava.common.collect.Lists;
 import com.google.gwt.thirdparty.guava.common.collect.Multimap;
 import com.google.gwt.thirdparty.guava.common.collect.Sets;
+import com.google.gwt.thirdparty.guava.common.hash.Hasher;
+import com.google.gwt.thirdparty.guava.common.hash.Hashing;
 
 import org.xml.sax.SAXException;
 
@@ -191,6 +194,7 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
@@ -199,6 +203,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -1526,19 +1531,23 @@ public final class JavaToJavaScriptCompiler {
     public PermutationResultImpl(String[] jsFragments, Permutation permutation,
         SymbolData[] symbolMap, StatementRanges[] statementRanges) {
       byte[][] bytes = new byte[jsFragments.length][];
+      Hasher h = Hashing.murmur3_128().newHasher();
+      h.putInt(jsFragments.length);
       for (int i = 0; i < jsFragments.length; ++i) {
-        bytes[i] = Util.getBytes(jsFragments[i]);
+        bytes[i] = jsFragments[i].getBytes(UTF_8);
+        h.putInt(bytes[i].length);
+        h.putBytes(bytes[i]);
       }
       this.js = bytes;
-      this.jsStrongName = Util.computeStrongName(bytes);
+      this.jsStrongName = h.hash().toString().toUpperCase(Locale.ROOT);
       this.permutation = permutation;
-      try {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        Util.writeObjectToStream(baos, (Object) symbolMap);
-        this.serializedSymbolMap = baos.toByteArray();
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+      try (ObjectOutputStream objectStream = new ObjectOutputStream(baos)) {
+        objectStream.writeObject(symbolMap);
       } catch (IOException e) {
         throw new RuntimeException("Should never happen with in-memory stream", e);
       }
+      this.serializedSymbolMap = baos.toByteArray();
       this.statementRanges = statementRanges;
     }
 
