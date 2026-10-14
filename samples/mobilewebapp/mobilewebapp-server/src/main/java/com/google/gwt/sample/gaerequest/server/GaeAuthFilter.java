@@ -47,8 +47,10 @@ public class GaeAuthFilter implements Filter {
     HttpServletResponse response = (HttpServletResponse) servletResponse;
 
     if (!userService.isUserLoggedIn()) {
-      String redirectUrl = request.getHeader(GaeHelper.REDIRECT_URL_HTTP_HEADER_NAME);
-      if (redirectUrl == null || redirectUrl.length() == 0) {
+      String header = request.getHeader(GaeHelper.REDIRECT_URL_HTTP_HEADER_NAME);
+      // Line breaks are never valid in a URL or in a response header value.
+      String redirectUrl = header == null ? "" : header.replaceAll("[\\r\\n]", "");
+      if (redirectUrl.length() == 0) {
         // Default to the root page if the redirecturl isn't specified in the request.
         redirectUrl = "/";
       }
