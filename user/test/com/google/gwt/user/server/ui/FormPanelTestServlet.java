@@ -15,6 +15,8 @@
  */
 package com.google.gwt.user.server.ui;
 
+import org.apache.commons.lang3.StringEscapeUtils;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 
@@ -37,7 +39,7 @@ public class FormPanelTestServlet extends HttpServlet {
     String query = req.getQueryString();
     if (query != null) {
       // Echo the query string.
-      rsp.getWriter().write(query);
+      rsp.getWriter().write(StringEscapeUtils.escapeHtml4(query));
     }
   }
 
