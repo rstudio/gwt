@@ -89,17 +89,14 @@ import java.util.Set;
  * Those methods should provide a confirmed collection implementation that's compatible with your
  * collection implementation.
  *
- * <p>If you're extending {@link TestList}, {@link TestSet}, or {@link TestBag}, you probably don't
+ * <p>If you're extending {@link TestList} or {@link TestSet} you probably don't
  * have to worry about the above methods, because those three classes already override the methods
  * to provide standard JDK confirmed collections.
  *
  * <p><B>Other notes</B>
  *
  * <p>If your {@link Collection} fails one of these tests by design, you may still use this base set
- * of cases. Simply override the test case (method) your {@link Collection} fails. For instance, the
- * {@link #testIteratorFailFast()} method is provided since most collections have fail-fast
- * iterators; however, that's not strictly required by the collection contract, so you may want to
- * override that method to do nothing.
+ * of cases. Simply override the test case (method) your {@link Collection} fails.
  *
  * <p>
  */
@@ -411,7 +408,7 @@ abstract class TestCollection extends TestObject {
     resetEmpty();
     try {
       collection.add(new Object());
-      fail("Emtpy collection should not support add.");
+      fail("Empty collection should not support add.");
     } catch (UnsupportedOperationException e) {
       // expected
     }
@@ -421,7 +418,7 @@ abstract class TestCollection extends TestObject {
 
     try {
       collection.addAll(Arrays.asList(getFullElements()));
-      fail("Emtpy collection should not support addAll.");
+      fail("Empty collection should not support addAll.");
     } catch (UnsupportedOperationException e) {
       // expected
     }
@@ -712,12 +709,12 @@ abstract class TestCollection extends TestObject {
 
     resetEmpty();
     assertTrue(
-        "Emtpy collection removeAll should return false for " + "empty input",
+        "Empty collection removeAll should return false for " + "empty input",
         !collection.removeAll(Collections.EMPTY_SET));
     verify();
 
     assertTrue(
-        "Emtpy collection removeAll should return false for " + "nonempty input",
+        "Empty collection removeAll should return false for " + "nonempty input",
         !collection.removeAll(new ArrayList(collection)));
     verify();
 

@@ -234,7 +234,6 @@ public class DateTimeFormatCreator {
           out.close();
         }
       }
-
     }
 
     private void generateLocale(GwtLocale locale, GwtLocale parent, Map<String, String[]> values)

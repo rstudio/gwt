@@ -21,6 +21,7 @@ import static javaemul.internal.InternalPreconditions.checkNotNull;
 import static javaemul.internal.InternalPreconditions.checkState;
 
 import javaemul.internal.ArrayHelper;
+import javaemul.internal.JsUtils;
 import javaemul.internal.annotations.SpecializeMethod;
 
 /**
@@ -30,7 +31,7 @@ import javaemul.internal.annotations.SpecializeMethod;
  *
  * @param <E> enumeration type
  */
-public abstract class EnumSet<E extends Enum<E>> extends AbstractSet<E> {
+public abstract class EnumSet<E extends Enum<E>> extends AbstractSet<E> implements Cloneable {
 
   /**
    * Implemented via sparse array since the set size is finite. Iteration takes
@@ -136,7 +137,7 @@ public abstract class EnumSet<E extends Enum<E>> extends AbstractSet<E> {
     @SpecializeMethod(params = Enum.class, target = "containsEnum")
     @Override
     public boolean contains(Object o) {
-      return (o instanceof Enum) && containsEnum((Enum) o);
+      return (o instanceof Enum) && containsEnum(JsUtils.uncheckedCast(o));
     }
 
     private boolean containsEnum(Enum e) {
@@ -151,7 +152,7 @@ public abstract class EnumSet<E extends Enum<E>> extends AbstractSet<E> {
     @SpecializeMethod(params = Enum.class, target = "removeEnum")
     @Override
     public boolean remove(Object o) {
-      return (o instanceof Enum) && removeEnum((Enum) o);
+      return (o instanceof Enum) && removeEnum(JsUtils.uncheckedCast(o));
     }
 
     private boolean removeEnum(Enum e) {

@@ -15,6 +15,8 @@
  */
 package com.google.gwt.emultest.java.lang;
 
+import static com.google.gwt.emultest.java.util.EmulTestBase.assertThrows;
+
 import com.google.gwt.junit.client.GWTTestCase;
 
 /**
@@ -98,6 +100,16 @@ public class IntegerTest extends GWTTestCase {
     } catch (NumberFormatException e) {
       // Expected behavior
     }
+  }
+
+  public void testParseIntWithIndex() {
+    assertEquals(42, Integer.parseInt("a42", 1, 3, 10));
+    assertThrows(NumberFormatException.class, () ->
+        assertEquals(42, Integer.parseInt("bad", 1, 3, 10)));
+    assertThrows(StringIndexOutOfBoundsException.class, () ->
+        assertEquals(42, Integer.parseInt("bad", 1, 30, 10)));
+    assertThrows(StringIndexOutOfBoundsException.class, () ->
+        assertEquals(42, Integer.parseInt("bad", -1, 3, 10)));
   }
 
   public void testBinaryString() {
@@ -234,6 +246,9 @@ public class IntegerTest extends GWTTestCase {
     assertEquals(-1, Integer.rotateLeft(-1, 4));
     assertEquals(Integer.MIN_VALUE, Integer.rotateLeft(0x40000000, 1));
     assertEquals(1, Integer.rotateLeft(Integer.MIN_VALUE, 1));
+    assertEquals(Integer.MIN_VALUE, Integer.rotateLeft(Integer.MIN_VALUE, 0));
+    assertEquals(Integer.MIN_VALUE, Integer.rotateLeft(1, -1));
+    assertEquals(-1, Integer.rotateLeft(-1, 1000));
   }
 
   public void testRotateRight() {
@@ -241,6 +256,9 @@ public class IntegerTest extends GWTTestCase {
     assertEquals(Integer.MIN_VALUE, Integer.rotateRight(1, 1));
     assertEquals(0x10000000, Integer.rotateRight(1, 4));
     assertEquals(-1, Integer.rotateRight(-1, 4));
+    assertEquals(Integer.MIN_VALUE, Integer.rotateLeft(Integer.MIN_VALUE, 0));
+    assertEquals(1, Integer.rotateRight(Integer.MIN_VALUE, -1));
+    assertEquals(-1, Integer.rotateRight(-1, 1000));
   }
 
   public void testSignum() {

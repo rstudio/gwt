@@ -75,8 +75,25 @@ public class EmulTestBase extends GWTTestCase {
     }
   }
 
+  public static void assertThrows(Class<? extends Exception> thrownCheck, Runnable toTest) {
+    try {
+      toTest.run();
+      fail("Should have failed");
+    } catch (Exception ex) {
+      assertEquals(thrownCheck, ex.getClass());
+    }
+  }
+
   @Override
   public String getModuleName() {
     return "com.google.gwt.emultest.EmulSuite";
+  }
+
+  protected <T> T hideFromCompiler(T value) {
+    if (Math.random() < -1) {
+      // Can never happen, but fools the compiler enough not to optimize this call.
+      fail();
+    }
+    return value;
   }
 }

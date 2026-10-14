@@ -31,9 +31,8 @@ public class BaseProxyCategory {
    * Sniff all return values and ensure that if the current bean is a mutable
    * EntityProxy, that its return values are mutable.
    */
-  // CHECKSTYLE_OFF
+  @SuppressWarnings("checkstyle:MethodName")
   public static <T> T __intercept(AutoBean<?> bean, T returnValue) {
-    // CHECKSTYLE_ON
 
     AbstractRequestContext context = requestContext(bean);
 
@@ -50,7 +49,7 @@ public class BaseProxyCategory {
      * delegate to the edit() method for wiring up the context.
      */
     if (returnValue instanceof BaseProxy) {
-      @SuppressWarnings("unchecked")
+      // noinspection unchecked
       T toReturn = (T) context.editProxy((BaseProxy) returnValue);
       return toReturn;
     }

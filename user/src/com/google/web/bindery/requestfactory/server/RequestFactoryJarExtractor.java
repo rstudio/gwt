@@ -122,10 +122,12 @@ public class RequestFactoryJarExtractor {
       this.loader = loader;
     }
 
+    @Override
     public boolean exists(String resource) {
       return loader.getResource(resource) != null;
     }
 
+    @Override
     public InputStream getResourceAsStream(String resource) {
       return loader.getResourceAsStream(resource);
     }
@@ -156,10 +158,12 @@ public class RequestFactoryJarExtractor {
       out = new JarOutputStream(new FileOutputStream(outFile), m);
     }
 
+    @Override
     public void close() throws IOException {
       out.close();
     }
 
+    @Override
     public void emit(String path, InputStream contents) throws IOException {
       ZipEntry entry = new ZipEntry(path);
       out.putNextEntry(entry);
@@ -360,24 +364,29 @@ public class RequestFactoryJarExtractor {
       this.av = av;
     }
 
+    @Override
     public void visit(String name, Object value) {
       value = processConstant(sourceType, value);
       av.visit(name, value);
     }
 
+    @Override
     public AnnotationVisitor visitAnnotation(String name, String desc) {
       desc = processDescriptor(sourceType, desc);
       return new AnnotationProcessor(desc, av.visitAnnotation(name, desc));
     }
 
+    @Override
     public AnnotationVisitor visitArray(String name) {
       return new AnnotationProcessor(name, av.visitArray(name));
     }
 
+    @Override
     public void visitEnd() {
       av.visitEnd();
     }
 
+    @Override
     public void visitEnum(String name, String desc, String value) {
       desc = processDescriptor(sourceType, desc);
       av.visitEnum(name, desc, value);
@@ -493,6 +502,7 @@ public class RequestFactoryJarExtractor {
       this.state = state;
     }
 
+    @Override
     public Void call() throws Exception {
       if (mode.isEmitClasses()) {
         String fileName = state.type.getInternalName();
@@ -508,7 +518,7 @@ public class RequestFactoryJarExtractor {
         String destPath = getPackagePath(state.type) + state.source;
         if (sources.add(sourcePath) && loader.exists(sourcePath)) {
           try (InputStream is = loader.getResourceAsStream(sourcePath)) {
-            emitter.emit(destPath, new ByteArrayInputStream(is.readAllBytes()));
+            emitter.emit(destPath, is);
           }
         }
       }
@@ -528,14 +538,17 @@ public class RequestFactoryJarExtractor {
       this.fv = fv;
     }
 
+    @Override
     public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
       return new AnnotationProcessor(sourceType, fv.visitAnnotation(desc, visible));
     }
 
+    @Override
     public void visitAttribute(Attribute attr) {
       fv.visitAttribute(attr);
     }
 
+    @Override
     public void visitEnd() {
       fv.visitEnd();
     }
@@ -693,6 +706,7 @@ public class RequestFactoryJarExtractor {
       typeName = type.getClassName();
     }
 
+    @Override
     public State call() {
       ClassWriter writer = new ClassWriter(0);
       ClassVisitor cv = writer;
