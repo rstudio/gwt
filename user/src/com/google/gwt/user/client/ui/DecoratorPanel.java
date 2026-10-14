@@ -184,7 +184,6 @@ public class DecoratorPanel extends SimplePanel {
 
     // Set the overall style name
     setStyleName(DEFAULT_STYLENAME);
-    Roles.getPresentationRole().set(table);
   }
 
   /**

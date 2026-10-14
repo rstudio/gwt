@@ -78,7 +78,6 @@ public abstract class CellPanel extends ComplexPanel {
     body = DOM.createTBody();
     DOM.appendChild(table, body);
     setElement(table);
-    Roles.getPresentationRole().set(getTable());
   }
 
   /**
