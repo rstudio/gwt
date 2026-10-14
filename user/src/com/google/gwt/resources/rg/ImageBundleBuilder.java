@@ -27,13 +27,15 @@ import java.awt.RenderingHints;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
-import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -64,6 +66,13 @@ class ImageBundleBuilder {
      * Determine the total area required to store a composite image.
      */
     Size arrangeImages(Collection<ImageRect> rects);
+  }
+
+  /**
+   * Opens a stream to the data of an image.
+   */
+  private interface ImageSource {
+    InputStream open() throws IOException;
   }
 
   /**
@@ -493,12 +502,11 @@ class ImageBundleBuilder {
     for (int i = 1, j = args.length; i < j; i++) {
       TreeLogger loopLogger = logger.branch(TreeLogger.DEBUG,
           "Processing argument " + args[i]);
-      File file = new File(args[i]);
-
       Exception ex = null;
       try {
-        builder.assimilate(loopLogger, args[i], file.toURI().toURL());
-      } catch (MalformedURLException e) {
+        Path path = Paths.get(args[i]).toAbsolutePath().normalize();
+        builder.assimilateFrom(loopLogger, args[i], () -> Files.newInputStream(path));
+      } catch (InvalidPathException e) {
         ex = e;
       } catch (UnableToCompleteException e) {
         ex = e;
@@ -520,10 +528,11 @@ class ImageBundleBuilder {
       BufferedImage bundledImage = builder.drawBundledImage(new BestFitArranger());
       byte[] bytes = createImageBytes(logger, bundledImage);
 
-      FileOutputStream out = new FileOutputStream(outFile);
+      FileOutputStream out =
+          new FileOutputStream(Paths.get(outFile).toAbsolutePath().normalize().toFile());
       out.write(bytes);
       out.close();
-    } catch (IOException e) {
+    } catch (IOException | InvalidPathException e) {
       logger.log(TreeLogger.ERROR, "Unable to write output file", e);
       System.exit(-2);
     } catch (UnableToCompleteException e) {
@@ -637,6 +646,11 @@ class ImageBundleBuilder {
    */
   public ImageRect assimilate(TreeLogger logger, String imageName, URL resource)
       throws UnableToCompleteException, UnsuitableForStripException {
+    return assimilateFrom(logger, imageName, () -> resource.openStream());
+  }
+
+  private ImageRect assimilateFrom(TreeLogger logger, String imageName, ImageSource source)
+      throws UnableToCompleteException, UnsuitableForStripException {
 
     /*
      * Decide whether or not we need to add to the composite image. Either way,
@@ -648,7 +662,7 @@ class ImageBundleBuilder {
 
     if (rect == null) {
       // Assimilate the image into the composite.
-      rect = addImage(logger, imageName, resource);
+      rect = addImage(logger, imageName, source);
 
       imageNameToImageRectMap.put(imageName, rect);
     }
@@ -687,7 +701,7 @@ class ImageBundleBuilder {
     return imageBytes;
   }
 
-  private ImageRect addImage(TreeLogger logger, String imageName, URL imageUrl)
+  private ImageRect addImage(TreeLogger logger, String imageName, ImageSource source)
       throws UnableToCompleteException, UnsuitableForStripException {
 
     logger = logger.branch(TreeLogger.TRACE,
@@ -697,7 +711,7 @@ class ImageBundleBuilder {
     // Be safe by default and assume that the incoming image is lossy
     boolean lossy = true;
     // Load the image
-    try (InputStream is = imageUrl.openStream();
+    try (InputStream is = source.open();
          MemoryCacheImageInputStream imageInputStream = new MemoryCacheImageInputStream(is)) {
       /*
        * ImageIO uses an SPI pattern API. We don't care about the particulars of

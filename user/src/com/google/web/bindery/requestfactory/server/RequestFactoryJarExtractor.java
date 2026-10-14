@@ -70,6 +70,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -879,7 +880,8 @@ public class RequestFactoryJarExtractor {
     RequestFactoryJarExtractor.ClassLoaderLoader classLoader =
         new RequestFactoryJarExtractor.ClassLoaderLoader(Thread.currentThread()
             .getContextClassLoader());
-    JarEmitter jarEmitter = new JarEmitter(new File(args[1]));
+    JarEmitter jarEmitter =
+        new JarEmitter(Paths.get(args[1]).toAbsolutePath().normalize().toFile());
     RequestFactoryJarExtractor extractor =
         new RequestFactoryJarExtractor(errorContext, classLoader, jarEmitter, seeds, resources,
             mode);
