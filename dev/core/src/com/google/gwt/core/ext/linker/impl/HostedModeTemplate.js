@@ -354,12 +354,6 @@ function __MODULE_FUNC__() {
   computeScriptBase();
 
 // __SHELL_SERVLET_ONLY_BEGIN__
-  // Force shell servlet to serve compiled output for Production Mode
-  if (!isHostedMode()) {
-    $doc.write('<script src="' + base + '__MODULE_NAME__.nocache.js?compiled"></script>');
-    return;
-  }
-
   // Default shell servlet load error function
   //
   onLoadErrorFunc = function() {
