@@ -24,14 +24,19 @@ import static javaemul.internal.InternalPreconditions.checkStringElementIndex;
 
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
+import java.lang.constant.Constable;
+import java.lang.constant.ConstantDesc;
 import java.nio.charset.Charset;
 import java.nio.charset.UnsupportedCharsetException;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.StringJoiner;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import javaemul.internal.ArrayHelper;
@@ -52,7 +57,7 @@ import jsinterop.annotations.JsType;
 // Needed to have constructors not fail compilation internally at Google
 @SuppressWarnings({ "ReturnValueIgnored", "unusable-by-js" })
 public final class String implements Comparable<String>, CharSequence,
-    Serializable {
+    Serializable, Constable, ConstantDesc {
   /* TODO(jat): consider whether we want to support the following methods;
    *
    * <ul>
@@ -396,7 +401,7 @@ public final class String implements Comparable<String>, CharSequence,
   }
 
   public boolean contains(CharSequence s) {
-    return indexOf(s.toString()) != -1;
+    return asNativeString().includes(s.toString());
   }
 
   public boolean contentEquals(CharSequence cs) {
@@ -408,9 +413,7 @@ public final class String implements Comparable<String>, CharSequence,
   }
 
   public boolean endsWith(String suffix) {
-    // If IE8 supported negative start index, we could have just used "-suffixlength".
-    int suffixlength = suffix.length();
-    return asNativeString().substr(length() - suffixlength, suffixlength).equals(suffix);
+    return asNativeString().endsWith(suffix);
   }
 
   // Marked with @DoNotInline because we don't have static eval for "==" yet.
@@ -488,10 +491,6 @@ public final class String implements Comparable<String>, CharSequence,
     return checkNotNull(this);
   }
 
-  public boolean isEmpty() {
-    return length() == 0;
-  }
-
   public int lastIndexOf(int codePoint) {
     return lastIndexOf(fromCodePoint(codePoint));
   }
@@ -505,7 +504,7 @@ public final class String implements Comparable<String>, CharSequence,
   }
 
   public int lastIndexOf(String str, int start) {
-    return asNativeString().lastIndexOf(str, start);
+    return start < 0 ? -1 : asNativeString().lastIndexOf(str, start);
   }
 
   @Override
@@ -521,9 +520,10 @@ public final class String implements Comparable<String>, CharSequence,
    *
    * TODO(jat): properly handle Java regex syntax
    */
+  @SuppressWarnings("checkstyle:SpaceAfterColon")
   public boolean matches(String regex) {
     // We surround the regex with '^' and '$' because it must match the entire string.
-    return new NativeRegExp("^(" + regex + ")$").test(this);
+    return new NativeRegExp("^(?:" + regex + ")$").test(this);
   }
 
   public int offsetByCodePoints(int index, int codePointOffset) {
@@ -692,11 +692,11 @@ public final class String implements Comparable<String>, CharSequence,
   }
 
   public boolean startsWith(String prefix) {
-    return startsWith(prefix, 0);
+    return asNativeString().startsWith(prefix);
   }
 
   public boolean startsWith(String prefix, int toffset) {
-    return toffset >= 0 && asNativeString().substr(toffset, prefix.length()).equals(prefix);
+    return asNativeString().startsWith(prefix, toffset);
   }
 
   @Override
@@ -803,6 +803,10 @@ public final class String implements Comparable<String>, CharSequence,
     return asNativeString().repeat(count);
   }
 
+  public <R> R transform(Function<? super String,? extends R> f) {
+    return f.apply(this);
+  }
+
   private int getLeadingWhitespaceLength() {
     int length = length();
     for (int i = 0; i < length; i++) {
@@ -821,6 +825,131 @@ public final class String implements Comparable<String>, CharSequence,
       }
     }
     return length;
+  }
+
+  public String indent(int spaces) {
+    if (isEmpty()) {
+      return "";
+    }
+    Stream<String> indentedLines;
+    if (spaces >= 0) {
+      String spaceString = " ".repeat(spaces);
+      indentedLines = lines().map(line -> spaceString + line);
+    } else {
+      indentedLines = lines().map(
+          line -> line.substring(Math.min(-spaces, line.getLeadingWhitespaceLength())));
+    }
+    return indentedLines.collect(Collectors.joining("\n", "", "\n"));
+  }
+
+  public String stripIndent() {
+    if (isEmpty()) {
+      return "";
+    }
+    List<String> lines = lines().collect(Collectors.toList());
+    int minIndent;
+    char lastChar = charAt(length() - 1);
+    String suffix = "";
+    if (lastChar != '\r' && lastChar != '\n') {
+      minIndent = Integer.MAX_VALUE;
+      for (int i = 0; i < lines.size() - 1; i++) {
+        String line = lines.get(i);
+        int leadingWhitespace = line.getLeadingWhitespaceLength();
+        // only update minIndent if not blank
+        if (leadingWhitespace < line.length()) {
+          minIndent = Math.min(minIndent, leadingWhitespace);
+        }
+      }
+      // the last line affects minIndent even if blank
+      minIndent = Math.min(minIndent, lines.get(lines.size() - 1).getLeadingWhitespaceLength());
+    } else {
+      suffix = "\n";
+      minIndent = 0;
+    }
+    final int outdent = minIndent;
+    return lines.stream().map(line -> {
+          if (line.isBlank()) {
+            return "";
+          }
+          return line.substring(outdent).stripTrailing();
+        })
+        .collect(Collectors.joining("\n", "", suffix));
+  }
+
+  public String translateEscapes() {
+    StringBuilder result = new StringBuilder();
+    int translated = 0;
+    while (translated < length()) {
+      int nextBackslash = indexOf("\\", translated);
+      if (nextBackslash == -1) {
+        result.append(substring(translated));
+        return result.toString();
+      }
+      if (nextBackslash == length() - 1) {
+        throw new IllegalArgumentException();
+      }
+      result.append(substring(translated, nextBackslash));
+      char currentChar = charAt(nextBackslash + 1);
+      translated = nextBackslash + 2;
+      switch (currentChar) {
+        case 'b':
+          result.append('\b');
+          break;
+        case 's':
+          result.append(' ');
+          break;
+        case 't':
+          result.append('\t');
+          break;
+        case 'n':
+          result.append('\n');
+          break;
+        case 'f':
+          result.append('\f');
+          break;
+        case 'r':
+          result.append('\r');
+          break;
+        case '\n':
+          // discard
+          break;
+        case '\r':
+          // discard \r and possibly \n that comes right after
+          if (translated < length() && charAt(translated) == '\n') {
+            translated++;
+          }
+          break;
+        case '"':
+          result.append('"');
+          break;
+        case '\'':
+          result.append('\'');
+          break;
+        case '\\':
+          result.append('\\');
+          break;
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+          int unicode = currentChar - '0';
+          char nextChar = charAt(translated);
+          while (nextChar >= '0' && nextChar < '8' && unicode < 32) {
+            unicode = (unicode << 3) + (nextChar - '0');
+            translated++;
+            nextChar = translated < length() ? charAt(translated) : 0;
+          }
+          result.append((char) unicode);
+          break;
+        default:
+          throw new IllegalArgumentException();
+      }
+    }
+    return result.toString();
   }
 
   private class LinesSpliterator extends Spliterators.AbstractSpliterator<String> {
@@ -863,11 +992,16 @@ public final class String implements Comparable<String>, CharSequence,
     public static native String fromCharCode(char x);
     public int length;
     public native char charCodeAt(int index);
+    public native boolean endsWith(String suffix);
     public native int indexOf(String str);
     public native int indexOf(String str, int startIndex);
+    public native boolean includes(String str);
+    public native boolean includes(String str, int startIndex);
     public native int lastIndexOf(String str);
     public native int lastIndexOf(String str, int start);
     public native String replace(NativeRegExp regex, String replace);
+    public native boolean startsWith(String prefix);
+    public native boolean startsWith(String prefix, int toffset);
     public native String substr(int beginIndex);
     public native String substr(int beginIndex, int len);
     public native String toLocaleLowerCase();

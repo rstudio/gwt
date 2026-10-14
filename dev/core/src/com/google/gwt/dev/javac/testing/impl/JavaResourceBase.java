@@ -82,6 +82,7 @@ public class JavaResourceBase {
           "public interface CharSequence {",
           "  char charAt(int index);",
           "  int length();",
+          "  default boolean isEmpty() { return length() == 0; }",
           "  String toString();",
           "}");
 
@@ -281,15 +282,18 @@ public class JavaResourceBase {
           "package java.lang.runtime;",
           "public class ObjectMethods {}");
 
-  // We only need Objects.hash() for Records - the real JRE would synthesize these methods on the
-  // fly using ObjectMethods, but we need to generate the code up front. This implementation is
-  // wrong, but the important thing is only that it exists for these tests.
+  // We only need Objects.hash() and .equals() for Records - the real JRE would synthesize these
+  // methods on the fly using ObjectMethods, but we need to generate the code up front.
+  // This implementation is wrong, but the important thing is only that it exists for these tests.
   public static final MockJavaResource OBJECTS =
       createMockJavaResource("java.util.Objects",
-          "package java.util;",
-          "public class Objects {",
-          "  public static int hash(Object... values) { return values.hashCode(); }",
-          "}");
+          """
+          package java.util;
+          public class Objects {
+            public static boolean equals(Object a, Object b) { return a == b; }
+            public static int hash(Object... values) { return values.hashCode(); }
+          }
+          """);
 
   public static final MockJavaResource RECORD =
       createMockJavaResource("java.lang.Record",
@@ -345,7 +349,6 @@ public class JavaResourceBase {
           "  }",
           "  private native boolean equals(String obj) /*-{ return false; }-*/;",
           "  public boolean equalsIgnoreCase(String str) { return false; }",
-          "  public native boolean isEmpty() /*-{ return true; }-*/;",
           "  public int length() { return 0; }",
           "  public static String valueOf(int i) { return \"\" + i; }",
           "  public static String valueOf(char c) { return \"\" + c; }",

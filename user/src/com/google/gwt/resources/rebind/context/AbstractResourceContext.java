@@ -24,8 +24,10 @@ import com.google.gwt.resources.ext.ResourceContext;
 import com.google.gwt.resources.ext.ResourceGenerator;
 import com.google.gwt.resources.ext.ResourceGeneratorUtil;
 import com.google.gwt.thirdparty.guava.common.io.BaseEncoding;
+import com.google.gwt.thirdparty.guava.common.io.ByteStreams;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
 
@@ -66,13 +68,18 @@ public abstract class AbstractResourceContext implements ResourceContext {
     return deploy(resource, null, forceExternal);
   }
   
+  @Override
   public String deploy(URL resource, String mimeType, boolean forceExternal)
       throws UnableToCompleteException {
     String fileName = ResourceGeneratorUtil.baseName(resource);
     try {
       URLConnection urlConnection = resource.openConnection();
-      byte[] bytes = urlConnection.getInputStream().readAllBytes();
-      String finalMimeType = (mimeType != null) ? mimeType : urlConnection.getContentType();
+      final byte[] bytes;
+      final String finalMimeType;
+      try (InputStream inputStream = urlConnection.getInputStream()) {
+        bytes = ByteStreams.toByteArray(inputStream);
+        finalMimeType = (mimeType != null) ? mimeType : urlConnection.getContentType();
+      }
       return deploy(fileName, finalMimeType, bytes, forceExternal);
     } catch (IOException e) {
       getLogger().log(TreeLogger.ERROR, "Unable to determine mime type of resource", e);
@@ -80,18 +87,22 @@ public abstract class AbstractResourceContext implements ResourceContext {
     }
   }
 
+  @Override
   public <T> T getCachedData(String key, Class<T> clazz) {
     return clazz.cast(clientBundleCtx.getCachedData(currentResourceGeneratorType + ":" + key));
   }
 
+  @Override
   public JClassType getClientBundleType() {
     return resourceBundleType;
   }
 
+  @Override
   public GeneratorContext getGeneratorContext() {
     return context;
   }
 
+  @Override
   public String getImplementationSimpleSourceName() {
     if (simpleSourceName == null) {
       throw new IllegalStateException(
@@ -100,10 +111,12 @@ public abstract class AbstractResourceContext implements ResourceContext {
     return simpleSourceName;
   }
   
+  @Override
   public ClientBundleRequirements getRequirements() {
     return requirements;
   }
 
+  @Override
   public <T> boolean putCachedData(String key, T value) {
     key = currentResourceGeneratorType + ":" + key;
     return value != clientBundleCtx.putCachedData(key, value);

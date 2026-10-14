@@ -18,8 +18,8 @@ package com.google.gwt.dev;
 import com.google.gwt.core.ext.TreeLogger;
 import com.google.gwt.core.ext.TreeLogger.Type;
 import com.google.gwt.core.ext.UnableToCompleteException;
-import com.google.gwt.dev.cfg.Properties;
 import com.google.gwt.thirdparty.guava.common.io.MoreFiles;
+import com.google.gwt.thirdparty.guava.common.io.RecursiveDeleteOption;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,7 +32,6 @@ import java.util.List;
  */
 class CompileTaskOptionsImpl implements CompileTaskOptions {
 
-  private Properties finalProperties;
   private Type logLevel;
   private final List<String> moduleNames = new ArrayList<String>();
   private File workDir;
@@ -49,7 +48,6 @@ class CompileTaskOptionsImpl implements CompileTaskOptions {
     setLogLevel(other.getLogLevel());
     setModuleNames(other.getModuleNames());
     setWorkDir(other.getWorkDir());
-    setFinalProperties(other.getFinalProperties());
   }
 
   public File getCompilerWorkDir(String moduleName) {
@@ -61,7 +59,8 @@ class CompileTaskOptionsImpl implements CompileTaskOptions {
     File compilerWorkDir = getCompilerWorkDir(moduleName);
     if (compilerWorkDir.exists()) {
       try {
-        MoreFiles.deleteDirectoryContents(compilerWorkDir.toPath());
+        MoreFiles.deleteDirectoryContents(compilerWorkDir.toPath(),
+            RecursiveDeleteOption.ALLOW_INSECURE);
       } catch (IOException e) {
         logger.log(TreeLogger.ERROR, "Unable to delete contents of " + compilerWorkDir, e);
         throw new UnableToCompleteException();
@@ -78,11 +77,6 @@ class CompileTaskOptionsImpl implements CompileTaskOptions {
   }
 
   @Override
-  public Properties getFinalProperties() {
-    return finalProperties;
-  }
-
-  @Override
   public Type getLogLevel() {
     return logLevel;
   }
@@ -95,11 +89,6 @@ class CompileTaskOptionsImpl implements CompileTaskOptions {
   @Override
   public File getWorkDir() {
     return workDir;
-  }
-
-  @Override
-  public void setFinalProperties(Properties finalProperties) {
-    this.finalProperties = finalProperties;
   }
 
   @Override

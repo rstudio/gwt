@@ -161,10 +161,8 @@ public class DoubleTest extends GWTTestCase {
     assertTrue(Double.MIN_VALUE < Double.MAX_VALUE);
     assertFalse(Double.NaN == Double.NaN);
     assertEquals(64, Double.SIZE);
-    // jdk1.6 assertEquals(Math.getExponent(Double.MAX_VALUE),
-    // Double.MAX_EXPONENT);
-    // jdk1.6 assertEquals(Math.getExponent(Double.MIN_NORMAL),
-    // Double.MIN_EXPONENT);
+    assertEquals(Math.getExponent(Double.MAX_VALUE), Double.MAX_EXPONENT);
+    assertEquals(Math.getExponent(Double.MIN_NORMAL), Double.MIN_EXPONENT);
     // issue 8073 - used to fail in prod mode
     assertFalse(Double.isInfinite(Double.NaN));
   }
@@ -256,6 +254,30 @@ public class DoubleTest extends GWTTestCase {
       fail("Expected NumberFormatException");
     } catch (NumberFormatException expected) {
     }
+  }
+
+  public void testToHexString() {
+    assertEquals("-0x1.0p0", Double.toHexString(-1.0));
+    assertEquals("0x1.0p0", Double.toHexString(1.0));
+    assertEquals("0x1.0p1", Double.toHexString(2.0));
+    assertEquals("0x1.8p1", Double.toHexString(3.0));
+    assertEquals("0x1.0p-1", Double.toHexString(0.5));
+    assertEquals("0x1.0p-2", Double.toHexString(0.25));
+    assertEquals("0x1.fffffffffffffp1023", Double.toHexString(Double.MAX_VALUE));
+    assertEquals("0x0.fffffffffffffp-1022", Double.toHexString(Math.nextDown(Double.MIN_NORMAL)));
+    assertEquals("0x0.0000000000001p-1022", Double.toHexString(Double.MIN_VALUE));
+    assertEquals("0x1.81c8p13", Double.toHexString(12345.0));
+    assertEquals("0x1.0p-1022", Double.toHexString(Double.MIN_NORMAL));
+    assertEquals("0x0.8p-1022", Double.toHexString(Double.MIN_NORMAL / 2));
+    assertEquals("0x0.cp-1022", Double.toHexString(Double.MIN_NORMAL / 4 * 3));
+    assertEquals("0x1.7e43c8800759cp996", Double.toHexString(1.0E300));
+    assertEquals("-0x1.7e43c8800759cp996", Double.toHexString(-1.0E300));
+    assertEquals("0x1.0p-1021", Double.toHexString(4.450147717014403E-308));
+    assertEquals("0x0.0p0", Double.toHexString(0.0));
+    assertEquals("-0x0.0p0", Double.toHexString(-0.0));
+    assertEquals("Infinity", Double.toHexString(Double.POSITIVE_INFINITY));
+    assertEquals("-Infinity", Double.toHexString(Double.NEGATIVE_INFINITY));
+    assertEquals("NaN", Double.toHexString(Double.NaN));
   }
 
   public void testDoubleBits() {
