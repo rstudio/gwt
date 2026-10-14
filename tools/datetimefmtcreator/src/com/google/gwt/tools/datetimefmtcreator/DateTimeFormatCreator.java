@@ -32,6 +32,8 @@ import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -596,7 +598,13 @@ public class DateTimeFormatCreator {
       System.err.println("Usage: " + DateTimeFormatCreator.class.getSimpleName() + " gwt-root-dir");
       return;
     }
-    File gwt = new File(args[0]);
+    File gwt;
+    try {
+      gwt = Paths.get(args[0]).toAbsolutePath().normalize().toFile();
+    } catch (InvalidPathException e) {
+      System.err.println(args[0] + " doesn't appear to be a GWT root directory");
+      return;
+    }
     File src = new File(gwt, "user/src");
     if (!gwt.exists() || !src.exists()) {
       System.err.println(args[0] + " doesn't appear to be a GWT root directory");

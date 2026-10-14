@@ -33,7 +33,7 @@ public class QuerySourceMap {
     int col = Integer.valueOf(args[2]);
 
     SourceMapping consumer = SourceMapConsumerFactory.parse(
-        Files.readString(Paths.get(filename), StandardCharsets.UTF_8));
+        Files.readString(Paths.get(filename).toAbsolutePath().normalize(), StandardCharsets.UTF_8));
     System.out.println(consumer.getMappingForLine(line, col));
   }
 }

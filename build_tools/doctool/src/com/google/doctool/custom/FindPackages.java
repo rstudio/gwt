@@ -19,6 +19,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -119,7 +121,7 @@ public class FindPackages {
     }
 
     try {
-      File rootDir = new File(args[0]);
+      File rootDir = Paths.get(args[0]).toAbsolutePath().normalize().toFile();
       // Output to <root>/doc/packages.properties
       File build = new File(rootDir, "build");
       File buildOut = new File(build, "out");
@@ -187,7 +189,7 @@ public class FindPackages {
       }
       out.println("# The last package should not have a trailing semicolon");
       out.close();
-    } catch (IOException e) {
+    } catch (IOException | InvalidPathException e) {
       System.err.println("Got I/O Exception: " + e);
       System.exit(2);
     }
