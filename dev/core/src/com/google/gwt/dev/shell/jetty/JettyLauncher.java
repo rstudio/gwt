@@ -19,8 +19,7 @@ import com.google.gwt.core.ext.ServletContainer;
 import com.google.gwt.core.ext.ServletContainerLauncher;
 import com.google.gwt.core.ext.TreeLogger;
 import com.google.gwt.core.ext.UnableToCompleteException;
-import com.google.gwt.dev.util.InstalledHelpInfo;
-import com.google.gwt.dev.util.Util;
+import com.google.gwt.dev.util.GwtprojectOrgHelpInfo;
 import com.google.gwt.thirdparty.guava.common.collect.Iterators;
 import com.google.gwt.thirdparty.guava.common.collect.Lists;
 
@@ -48,6 +47,7 @@ import org.eclipse.jetty.webapp.WebAppContext;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
@@ -89,10 +89,9 @@ public class JettyLauncher extends ServletContainerLauncher {
    */
   private static void maybeLogDeprecationWarning(TreeLogger log) {
     if (hasLoggedDeprecationWarning.compareAndSet(false, true)) {
-      log.log(TreeLogger.Type.WARN, "DevMode will default to -noserver in a future release, and " +
-              "JettyLauncher may be removed or changed. Please consider running your own " +
-              "application server and either passing -noserver to DevMode or migrating to " +
-              "CodeServer. Alternatively, consider implementing your own " +
+      log.log(TreeLogger.Type.WARN, "JettyLauncher is deprecated for removal. Please consider" +
+              "running your own application server and either passing -noserver to DevMode or " +
+              "migrating to CodeServer. Alternatively, consider implementing your own " +
               "ServletContainerLauncher to continue running your application server from " +
               "DevMode.");
     }
@@ -400,7 +399,12 @@ public class JettyLauncher extends ServletContainerLauncher {
 
         // Special-case JDBCUnloader; it should always be loaded in the webapp classloader
         if (JDBCUnloader.class.getName().equals(name)) {
-          byte[] jdbcUnloader = Util.readURLAsBytes(found);
+          byte[] jdbcUnloader;
+          try (InputStream inputStream = found.openStream()) {
+            jdbcUnloader = inputStream.readAllBytes();
+          } catch (IOException e) {
+            throw new ClassNotFoundException("Could not read class " + name, e);
+          }
           return defineClass(name, jdbcUnloader, 0, jdbcUnloader.length);
         }
 
@@ -447,7 +451,7 @@ public class JettyLauncher extends ServletContainerLauncher {
         }
         branch = branch.branch(logLevel, "Adding classpath entry '"
             + classPathURL + "' to the web app classpath for this session",
-            null, new InstalledHelpInfo("webAppClassPath.html"));
+            null, new GwtprojectOrgHelpInfo("webAppClassPath.html"));
         try {
           addClassPath(classPathURL);
           return true;
@@ -543,12 +547,9 @@ public class JettyLauncher extends ServletContainerLauncher {
 
   private SslConfiguration sslConfig = new SslConfiguration(ClientAuthType.NONE, null, null, false);
 
-  private final Object privateInstanceLock = new Object();
-
-
   @Override
   public String getName() {
-    return "Jetty";
+    return "DeprecatedJettyLauncher";
   }
 
   @Override
@@ -569,15 +570,9 @@ public class JettyLauncher extends ServletContainerLauncher {
     return true;
   }
 
-  /*
-   * TODO: This is a hack to pass the base log level to the SCL. We'll have to
-   * figure out a better way to do this for SCLs in general. Please do not
-   * depend on this method, as it is subject to change.
-   */
+  @Override
   public void setBaseRequestLogLevel(TreeLogger.Type baseLogLevel) {
-    synchronized (privateInstanceLock) {
-      this.baseLogLevel = baseLogLevel;
-    }
+    this.baseLogLevel = baseLogLevel;
   }
 
   @Override
@@ -634,7 +629,7 @@ public class JettyLauncher extends ServletContainerLauncher {
     wac.setSecurityHandler(new ConstraintSecurityHandler());
 
     RequestLogHandler logHandler = new RequestLogHandler();
-    logHandler.setRequestLog(new JettyRequestLogger(logger, getBaseLogLevel()));
+    logHandler.setRequestLog(new JettyRequestLogger(logger, this.baseLogLevel));
     logHandler.setHandler(wac);
     server.setHandler(logHandler);
     server.start();
@@ -722,16 +717,6 @@ public class JettyLauncher extends ServletContainerLauncher {
 
     if (appRootDir == null) {
       throw new NullPointerException("app root direcotry cannot be null");
-    }
-  }
-
-  /*
-   * TODO: This is a hack to pass the base log level to the SCL. We'll have to
-   * figure out a better way to do this for SCLs in general.
-   */
-  private TreeLogger.Type getBaseLogLevel() {
-    synchronized (privateInstanceLock) {
-      return this.baseLogLevel;
     }
   }
 

@@ -42,7 +42,7 @@ import com.google.gwt.dev.util.OutputFileSet;
 import com.google.gwt.dev.util.OutputFileSetOnDirectory;
 import com.google.gwt.dev.util.OutputFileSetOnJar;
 import com.google.gwt.dev.util.PersistenceBackedObject;
-import com.google.gwt.dev.util.Util;
+import com.google.gwt.dev.util.StringInterningObjectInputStream;
 import com.google.gwt.dev.util.arg.ArgHandlerDeployDir;
 import com.google.gwt.dev.util.arg.ArgHandlerExtraDir;
 import com.google.gwt.dev.util.arg.ArgHandlerSaveSourceOutput;
@@ -51,15 +51,18 @@ import com.google.gwt.dev.util.arg.OptionDeployDir;
 import com.google.gwt.dev.util.arg.OptionExtraDir;
 import com.google.gwt.dev.util.arg.OptionSaveSourceOutput;
 import com.google.gwt.dev.util.arg.OptionWarDir;
-import com.google.gwt.dev.util.log.speedtracer.CompilerEventType;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger.Event;
+import com.google.gwt.dev.util.log.perf.SimpleEvent;
 import com.google.gwt.thirdparty.guava.common.collect.Sets;
+import com.google.gwt.thirdparty.guava.common.io.MoreFiles;
+import com.google.gwt.thirdparty.guava.common.io.RecursiveDeleteOption;
 
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -243,7 +246,11 @@ public class Link {
             ze.setTime(0);
           }
           jar.putNextEntry(ze);
-          Util.writeObjectToStream(jar, art);
+          ObjectOutputStream objectStream = new ObjectOutputStream(jar);
+          objectStream.writeObject(art);
+          // Explicitly not closing, only flushing, so that closeEntry() can close
+          objectStream.flush();
+
           jar.closeEntry();
         }
       }
@@ -257,27 +264,27 @@ public class Link {
 
   public static void main(String[] args) {
     boolean success = false;
-    Event linkEvent = SpeedTracerLogger.start(CompilerEventType.LINK);
-    /*
-     * NOTE: main always exits with a call to System.exit to terminate any
-     * non-daemon threads that were started in Generators. Typically, this is to
-     * shutdown AWT related threads, since the contract for their termination is
-     * still implementation-dependent.
-     */
-    final LinkOptions options = new LinkOptionsImpl();
+    try (SimpleEvent ignored = new SimpleEvent("Link")) {
+      /*
+       * NOTE: main always exits with a call to System.exit to terminate any
+       * non-daemon threads that were started in Generators. Typically, this is to
+       * shutdown AWT related threads, since the contract for their termination is
+       * still implementation-dependent.
+       */
+      final LinkOptions options = new LinkOptionsImpl();
 
-    if (new ArgProcessor(options).processArgs(args)) {
-      CompileTask task = new CompileTask() {
-        @Override
-        public boolean run(TreeLogger logger) throws UnableToCompleteException {
-          return new Link(options).run(logger);
+      if (new ArgProcessor(options).processArgs(args)) {
+        CompileTask task = new CompileTask() {
+          @Override
+          public boolean run(TreeLogger logger) throws UnableToCompleteException {
+            return new Link(options).run(logger);
+          }
+        };
+        if (CompileTaskRunner.runWithAppropriateLogger(options, task)) {
+          success = true;
         }
-      };
-      if (CompileTaskRunner.runWithAppropriateLogger(options, task)) {
-        success = true;
       }
     }
-    linkEvent.end();
     System.exit(success ? 0 : 1);
   }
 
@@ -335,7 +342,10 @@ public class Link {
         || name.endsWith(".jar") || name.endsWith(".zip"))) {
       return new OutputFileSetOnJar(dirOrJar, pathPrefix);
     } else {
-      Util.recursiveDelete(new File(dirOrJar, pathPrefix), true);
+      File target = new File(dirOrJar, pathPrefix);
+      if (target.exists()) {
+        MoreFiles.deleteDirectoryContents(target.toPath(), RecursiveDeleteOption.ALLOW_INSECURE);
+      }
       return new OutputFileSetOnDirectory(dirOrJar, pathPrefix);
     }
   }
@@ -569,8 +579,11 @@ public class Link {
         String entryName = entry.getName();
         if (entryName.startsWith("arts/")) {
           try {
-            artForEntry = Util.readStreamAsObject(new BufferedInputStream(
-                jarFile.getInputStream(entry)), Artifact.class);
+            try (InputStream inputStream = new BufferedInputStream(jarFile.getInputStream(entry));
+                 ObjectInputStream objectInputStream =
+                     new StringInterningObjectInputStream(inputStream)) {
+              artForEntry = (Artifact<?>) objectInputStream.readObject();
+            }
             assert artForEntry.isTransferableFromShards();
           } catch (ClassNotFoundException e) {
             logger.log(TreeLogger.ERROR,

@@ -52,7 +52,6 @@ import com.google.gwt.dev.js.ast.JsScope;
 import com.google.gwt.dev.resource.ResourceOracle;
 import com.google.gwt.dev.util.DefaultTextOutput;
 import com.google.gwt.dev.util.OutputFileSet;
-import com.google.gwt.util.tools.Utility;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -81,10 +80,9 @@ public class StandardLinkerContext extends Linker implements LinkerContext {
    */
   private static class TopFunctionStringInterner extends JsModVisitor {
 
-    public static boolean exec(JsProgram program) {
+    public static void exec(JsProgram program) {
       TopFunctionStringInterner v = new TopFunctionStringInterner(program);
       v.accept(program);
-      return v.didChange();
     }
 
     private final JsProgram program;
@@ -95,7 +93,7 @@ public class StandardLinkerContext extends Linker implements LinkerContext {
 
     @Override
     public boolean visit(JsFunction x, JsContext ctx) {
-      didChange |= JsLiteralInterner.exec(program, x.getBody(), x.getScope(), true);
+      JsLiteralInterner.exec(program, x.getBody(), x.getScope(), true);
       return false;
     }
   }
@@ -521,10 +519,8 @@ public class StandardLinkerContext extends Linker implements LinkerContext {
           partialPath = partialPath.substring(1);
         }
       }
-      OutputStream artifactStream = null;
-      try {
-        artifactStream = new BufferedOutputStream(out.openForWrite(partialPath,
-            artifact.getLastModified()));
+      try (OutputStream artifactStream = new BufferedOutputStream(
+          out.openForWrite(partialPath, artifact.getLastModified()))) {
         artifact.writeTo(artifactLogger, artifactStream);
       } catch (IOException e) {
         artifactLogger.log(TreeLogger.ERROR,
@@ -533,8 +529,6 @@ public class StandardLinkerContext extends Linker implements LinkerContext {
         if (visibility != Visibility.Private) {
           throw new UnableToCompleteException();
         }
-      } finally {
-        Utility.close(artifactStream);
       }
     }
   }

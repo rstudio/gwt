@@ -22,13 +22,19 @@ import com.google.gwt.dev.cfg.ModuleDef;
 import com.google.gwt.dev.cfg.ModuleDefLoader;
 import com.google.gwt.dev.cfg.PropertyCombinations;
 import com.google.gwt.dev.util.Memory;
-import com.google.gwt.dev.util.Util;
-import com.google.gwt.dev.util.log.speedtracer.CompilerEventType;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger.Event;
+import com.google.gwt.dev.util.StringInterningObjectInputStream;
+import com.google.gwt.dev.util.log.perf.SimpleEvent;
 
+import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
 
 /**
  * Performs the first phase of compilation, generating the set of permutations
@@ -90,19 +96,18 @@ public class AnalyzeModule {
    */
   public static void main(String[] args) {
     Memory.initialize();
-    SpeedTracerLogger.init();
-    Event analyzeModuleEvent = SpeedTracerLogger.start(CompilerEventType.ANALYZE_MODULE);
-    final AnalyzeModuleOptions options = new AnalyzeModuleOptionsImpl();
-    if (new ArgProcessor(options).processArgs(args)) {
-      CompileTask task = new CompileTask() {
-        @Override
-        public boolean run(TreeLogger logger) throws UnableToCompleteException {
-          return new AnalyzeModule(options).run(logger);
-        }
-      };
-      CompileTaskRunner.runWithAppropriateLogger(options, task);
+    try (SimpleEvent ignored = new SimpleEvent("AnalyzeModule")) {
+      final AnalyzeModuleOptions options = new AnalyzeModuleOptionsImpl();
+      if (new ArgProcessor(options).processArgs(args)) {
+        CompileTask task = new CompileTask() {
+          @Override
+          public boolean run(TreeLogger logger) throws UnableToCompleteException {
+            return new AnalyzeModule(options).run(logger);
+          }
+        };
+        CompileTaskRunner.runWithAppropriateLogger(options, task);
+      }
     }
-    analyzeModuleEvent.end();
   }
 
   /**
@@ -114,10 +119,9 @@ public class AnalyzeModule {
   public static PrecompileTaskOptions readAnalyzeModuleOptionsFile(
       TreeLogger logger, File compilerWorkDir) {
     File optionsFile = new File(compilerWorkDir, AnalyzeModule.OPTIONS_FILENAME);
-    PrecompileTaskOptions precompilationOptions = null;
-    try {
-      precompilationOptions = Util.readFileAsObject(optionsFile,
-          PrecompileTaskOptions.class);
+    try (InputStream is = new BufferedInputStream(new FileInputStream(optionsFile));
+         ObjectInputStream objectInputStream = new StringInterningObjectInputStream(is)) {
+      return (PrecompileTaskOptions) objectInputStream.readObject();
     } catch (IOException e) {
       if (logger.isLoggable(TreeLogger.DEBUG)) {
         logger.log(TreeLogger.DEBUG, "Failed to read " + optionsFile
@@ -128,21 +132,17 @@ public class AnalyzeModule {
       logger.log(TreeLogger.ERROR, "Failed to read " + optionsFile, e);
       return null;
     }
-    return precompilationOptions;
   }
 
   private final AnalyzeModuleOptionsImpl options;
 
-  public AnalyzeModule(AnalyzeModuleOptions options) {
+  private AnalyzeModule(AnalyzeModuleOptions options) {
     this.options = new AnalyzeModuleOptionsImpl(options);
   }
 
   public boolean run(TreeLogger logger) throws UnableToCompleteException {
     for (String moduleName : options.getModuleNames()) {
-      File compilerWorkDir = options.getCompilerWorkDir(moduleName);
-      Util.recursiveDelete(compilerWorkDir, true);
-      // No need to check mkdirs result because an IOException will occur anyway
-      compilerWorkDir.mkdirs();
+      File compilerWorkDir = options.createCompilerWorkDir(logger, moduleName);
 
       ModuleDef module = ModuleDefLoader.loadFromClassPath(logger, moduleName);
       if (logger.isLoggable(TreeLogger.INFO)) {
@@ -155,10 +155,24 @@ public class AnalyzeModule {
        */
       int numPermutations = new PropertyCombinations(module.getProperties(),
           module.getActiveLinkerNames()).collapseProperties().size();
-      Util.writeStringAsFile(logger, new File(compilerWorkDir,
-          AnalyzeModule.PERM_COUNT_FILENAME), String.valueOf(numPermutations));
-      Util.writeObjectAsFile(logger, new File(compilerWorkDir,
-          AnalyzeModule.OPTIONS_FILENAME), options);
+      try {
+        Files.writeString(new File(compilerWorkDir, AnalyzeModule.PERM_COUNT_FILENAME).toPath(),
+            String.valueOf(numPermutations));
+      } catch (IOException e) {
+        logger.log(TreeLogger.ERROR, "Unable to write permutation count to " +
+            AnalyzeModule.PERM_COUNT_FILENAME, e);
+        throw new UnableToCompleteException();
+      }
+
+      File optFile = new File(compilerWorkDir, AnalyzeModule.OPTIONS_FILENAME);
+      try (SimpleEvent ignored = new SimpleEvent("Write analyze module options to file");
+           OutputStream stream = new FileOutputStream(optFile);
+           ObjectOutputStream objectStream = new ObjectOutputStream(stream)) {
+        objectStream.writeObject(options);
+      } catch (IOException e) {
+        logger.log(TreeLogger.ERROR, "Unable to write file: " + optFile.getAbsolutePath(), e);
+        throw new UnableToCompleteException();
+      }
 
       // TODO(zundel): Serializing the ModuleDef structure would save time in
       // subsequent steps.

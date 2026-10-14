@@ -165,6 +165,9 @@ public class DecoratorPanel extends SimplePanel {
 
     // Add a tbody
     Element table = getElement();
+    // aria role to indicate it is a plain layout table
+    Roles.getPresentationRole().set(table);
+    
     tbody = DOM.createTBody();
     DOM.appendChild(table, tbody);
     table.setPropertyInt("cellSpacing", 0);

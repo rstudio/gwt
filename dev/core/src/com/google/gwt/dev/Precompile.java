@@ -33,14 +33,16 @@ import com.google.gwt.dev.jjs.PrecompilationContext;
 import com.google.gwt.dev.jjs.UnifiedAst;
 import com.google.gwt.dev.util.CollapsedPropertyKey;
 import com.google.gwt.dev.util.Memory;
-import com.google.gwt.dev.util.Util;
 import com.google.gwt.dev.util.collect.Lists;
-import com.google.gwt.dev.util.log.speedtracer.CompilerEventType;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger.Event;
+import com.google.gwt.dev.util.log.perf.SimpleEvent;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.lang.management.ManagementFactory;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -79,8 +81,6 @@ public class Precompile {
    */
   public static void main(String[] args) {
     Memory.initialize();
-    SpeedTracerLogger.init();
-    Event precompileEvent = SpeedTracerLogger.start(CompilerEventType.PRECOMPILE);
     if (System.getProperty("gwt.jjs.dumpAst") != null) {
       System.out.println("Will dump AST to: " + System.getProperty("gwt.jjs.dumpAst"));
     }
@@ -105,7 +105,6 @@ public class Precompile {
         success = true;
       }
     }
-    precompileEvent.end();
     System.exit(success ? 0 : 1);
   }
 
@@ -138,8 +137,7 @@ public class Precompile {
    * @param compilerContext shared read only compiler state
    */
   public static boolean validate(TreeLogger logger, CompilerContext compilerContext) {
-    Event validateEvent = SpeedTracerLogger.start(CompilerEventType.VALIDATE);
-    try {
+    try (SimpleEvent ignored = new SimpleEvent("Validate")) {
       ModuleDef module = compilerContext.getModule();
       PrecompileTaskOptions jjsOptions = compilerContext.getOptions();
       CompilationState compilationState = module.getCompilationState(logger, compilerContext);
@@ -169,8 +167,6 @@ public class Precompile {
     } catch (UnableToCompleteException e) {
       // Already logged.
       return false;
-    } finally {
-      validateEvent.end();
     }
   }
 
@@ -194,13 +190,11 @@ public class Precompile {
   static Precompilation precompile(TreeLogger logger, CompilerContext compilerContext,
       int permutationBase, PropertyCombinations propertyCombinations, long startTimeMilliseconds) {
 
-    Event precompileEvent = SpeedTracerLogger.start(CompilerEventType.PRECOMPILE);
-
     // This initializes the Java2D library in a thread so that the main program
     // doesn't block when the library is accessed for the first time.
     new GraphicsInitThread().start();
 
-    try {
+    try (SimpleEvent ignored = new SimpleEvent("Precompile")) {
       ModuleDef module = compilerContext.getModule();
       PrecompileTaskOptions jjsOptions = compilerContext.getOptions();
       if (jjsOptions.isIncrementalCompileEnabled()) {
@@ -299,8 +293,6 @@ public class Precompile {
       // We intentionally don't pass in the exception here since the real
       // cause has been logged.
       return null;
-    } finally {
-      precompileEvent.end();
     }
   }
 
@@ -372,11 +364,7 @@ public class Precompile {
 
   public boolean run(TreeLogger logger) throws UnableToCompleteException {
     for (String moduleName : options.getModuleNames()) {
-      File compilerWorkDir = options.getCompilerWorkDir(moduleName);
-      Util.recursiveDelete(compilerWorkDir, true);
-      // No need to check mkdirs result because an IOException will occur
-      // anyway.
-      compilerWorkDir.mkdirs();
+      File compilerWorkDir = options.createCompilerWorkDir(logger, moduleName);
 
       File precompilationFile = new File(compilerWorkDir, PRECOMPILE_FILENAME);
 
@@ -414,12 +402,26 @@ public class Precompile {
          */
         TreeLogger branch =
             logger.branch(TreeLogger.INFO, "Precompiling (minimal) module " + module.getName());
-        Util.writeObjectAsFile(logger, precompilationFile, options);
+        try (SimpleEvent ignored = new SimpleEvent("Write PrecompileOptions to disk");
+             OutputStream stream = new FileOutputStream(precompilationFile);
+             ObjectOutputStream objectStream = new ObjectOutputStream(stream)) {
+          objectStream.writeObject(options);
+        } catch (IOException e1) {
+          logger.log(TreeLogger.ERROR, "Unable to write file: "
+              + precompilationFile.getAbsolutePath(), e1);
+          throw new UnableToCompleteException();
+        }
         int numPermutations =
             new PropertyCombinations(module.getProperties(), module.getActiveLinkerNames())
                 .collapseProperties().size();
-        Util.writeStringAsFile(logger, new File(compilerWorkDir, PERM_COUNT_FILENAME), String
-            .valueOf(numPermutations));
+        try {
+          Files.writeString(new File(compilerWorkDir, PERM_COUNT_FILENAME).toPath(),
+              String.valueOf(numPermutations));
+        } catch (IOException e) {
+          logger.log(TreeLogger.ERROR, "Unable to write permutation count to "
+              + PERM_COUNT_FILENAME, e);
+          throw new UnableToCompleteException();
+        }
         if (branch.isLoggable(TreeLogger.INFO)) {
           branch.log(TreeLogger.INFO,
               "Precompilation (minimal) succeeded, number of permutations: " + numPermutations);
@@ -446,11 +448,25 @@ public class Precompile {
           if (!options.shouldSaveSource() && !module.shouldEmbedSourceMapContents()) {
             precompilation.removeSourceArtifacts(logger);
           }
-          Util.writeObjectAsFile(logger, precompilationFile, precompilation);
+          try (SimpleEvent ignored = new SimpleEvent("Write Precompilation to disk");
+               OutputStream stream = new FileOutputStream(precompilationFile);
+               ObjectOutputStream objectStream = new ObjectOutputStream(stream)) {
+            objectStream.writeObject(precompilation);
+          } catch (IOException e1) {
+            logger.log(TreeLogger.ERROR, "Unable to write file: "
+                + precompilationFile.getAbsolutePath(), e1);
+            throw new UnableToCompleteException();
+          }
 
           int permsPrecompiled = precompilation.getPermutations().length;
-          Util.writeStringAsFile(logger, new File(compilerWorkDir, PERM_COUNT_FILENAME), String
-              .valueOf(permsPrecompiled));
+          try {
+            Files.writeString(new File(compilerWorkDir, PRECOMPILE_FILENAME).toPath(),
+                String.valueOf(permsPrecompiled));
+          } catch (IOException e) {
+            branch.log(TreeLogger.ERROR, "Unable to write precompilation count to "
+                + PRECOMPILE_FILENAME, e);
+            throw new UnableToCompleteException();
+          }
           if (branch.isLoggable(TreeLogger.INFO)) {
             branch.log(TreeLogger.INFO, "Precompilation succeeded, number of permutations: "
                 + permsPrecompiled);

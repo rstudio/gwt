@@ -7,5 +7,8 @@
 # Generated poms
 /maven/poms/**/pom.xml
 
+# Maven build directories for samples
+samples/**/target/
+
 # RStudio-specific below here
 /.idea

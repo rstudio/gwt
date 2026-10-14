@@ -73,6 +73,8 @@ public abstract class CellPanel extends ComplexPanel {
 
   public CellPanel() {
     table = DOM.createTable();
+    // aria role to indicate it is a plain layout table
+    Roles.getPresentationRole().set(table);
     body = DOM.createTBody();
     DOM.appendChild(table, body);
     setElement(table);

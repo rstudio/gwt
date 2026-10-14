@@ -27,18 +27,17 @@ import com.google.gwt.dev.jjs.impl.GwtAstBuilder;
 import com.google.gwt.dev.js.ast.JsRootScope;
 import com.google.gwt.dev.resource.Resource;
 import com.google.gwt.dev.util.StringInterner;
-import com.google.gwt.dev.util.Util;
-import com.google.gwt.dev.util.log.speedtracer.CompilerEventType;
-import com.google.gwt.dev.util.log.speedtracer.DevModeEventType;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger.Event;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger.EventType;
+import com.google.gwt.dev.util.log.perf.SimpleEvent;
 import com.google.gwt.thirdparty.guava.common.collect.ImmutableList;
 import com.google.gwt.thirdparty.guava.common.collect.ImmutableMap;
 import com.google.gwt.thirdparty.guava.common.collect.Interner;
 import com.google.gwt.thirdparty.guava.common.collect.Lists;
 import com.google.gwt.thirdparty.guava.common.collect.Maps;
 import com.google.gwt.thirdparty.guava.common.collect.Sets;
+import com.google.gwt.thirdparty.guava.common.hash.Funnels;
+import com.google.gwt.thirdparty.guava.common.hash.Hasher;
+import com.google.gwt.thirdparty.guava.common.hash.Hashing;
+import com.google.gwt.thirdparty.guava.common.io.ByteStreams;
 
 import org.eclipse.jdt.core.compiler.CharOperation;
 import org.eclipse.jdt.internal.compiler.ast.CompilationUnitDeclaration;
@@ -48,13 +47,13 @@ import org.eclipse.jdt.internal.compiler.classfmt.ClassFormatException;
 import org.eclipse.jdt.internal.compiler.lookup.Binding;
 import org.eclipse.jdt.internal.compiler.lookup.ReferenceBinding;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -81,8 +80,7 @@ public class CompilationStateBuilder {
       public void process(CompilationUnitBuilder builder, CompilationUnitDeclaration cud,
           List<ImportReference> cudOriginaImports,
           List<CompiledClass> compiledClasses) {
-        Event event = SpeedTracerLogger.start(DevModeEventType.CSB_PROCESS);
-        try {
+        try (SimpleEvent ignored = new SimpleEvent("CSB process")) {
           // Collect parameter method names event when the compilation unit has errors.
 
           List<JDeclaredType> types = ImmutableList.of();
@@ -175,8 +173,6 @@ public class CompilationStateBuilder {
               .setProblems(cud.compilationResult().getProblems());
 
           buildQueue.add(builder);
-        } finally {
-          event.end();
         }
       }
     }
@@ -220,12 +216,9 @@ public class CompilationStateBuilder {
     public Collection<CompilationUnit> addGeneratedTypes(TreeLogger logger,
         Collection<GeneratedUnit> generatedUnits, CompilationState compilationState)
         throws UnableToCompleteException {
-      Event event = SpeedTracerLogger.start(DevModeEventType.CSB_ADD_GENERATED_TYPES);
-      try {
+      try (SimpleEvent ignored = new SimpleEvent("CSB addGeneratedTypes")) {
         return doBuildGeneratedTypes(logger, compilerContext, generatedUnits, compilationState,
             this);
-      } finally {
-        event.end();
       }
     }
 
@@ -264,7 +257,7 @@ public class CompilationStateBuilder {
      */
     Collection<CompilationUnit> compile(TreeLogger logger, CompilerContext compilerContext,
         Collection<CompilationUnitBuilder> builders,
-        Map<CompilationUnitBuilder, CompilationUnit> cachedUnits, EventType eventType)
+        Map<CompilationUnitBuilder, CompilationUnit> cachedUnits, String caller)
         throws UnableToCompleteException {
       UnitCache unitCache = compilerContext.getUnitCache();
       // Initialize the set of valid classes to the initially cached units.
@@ -316,12 +309,9 @@ public class CompilationStateBuilder {
         };
         buildThread.setName("CompilationUnitBuilder");
         buildThread.start();
-        Event jdtCompilerEvent = SpeedTracerLogger.start(eventType);
         long compilationStartNanos = System.nanoTime();
-        try {
+        try (SimpleEvent ignored = new SimpleEvent("JdtCompiler " + caller)) {
           compiler.doCompile(branch, builders);
-        } finally {
-          jdtCompilerEvent.end();
         }
         buildQueue.add(sentinel);
         try {
@@ -459,11 +449,8 @@ public class CompilationStateBuilder {
   public static CompilationState buildFrom(TreeLogger logger, CompilerContext compilerContext,
       Set<Resource> resources)
       throws UnableToCompleteException {
-    Event event = SpeedTracerLogger.start(DevModeEventType.CSB_BUILD_FROM_ORACLE);
-    try {
+    try (SimpleEvent ignored = new SimpleEvent("CSB build from oracle")) {
       return instance.doBuildFrom(logger, compilerContext, resources);
-    } finally {
-      event.end();
     }
   }
 
@@ -531,7 +518,7 @@ public class CompilationStateBuilder {
 
     Collection<CompilationUnit> resultUnits = compileMoreLater.compile(
         logger, compilerContext, builders, cachedUnits,
-        CompilerEventType.JDT_COMPILER_CSB_FROM_ORACLE);
+        "Source Oracle");
 
     TypeOracle typeOracle = new TypeOracle();
     CompilationUnitTypeOracleUpdater typeOracleUpdater =
@@ -553,23 +540,21 @@ public class CompilationStateBuilder {
   }
 
   private ContentId getResourceContentId(Resource resource) {
-    ByteArrayOutputStream out = new ByteArrayOutputStream(1024);
-    try {
-      InputStream in = resource.openContents();
-      /**
+    try (InputStream in = resource.openContents()) {
+      /*
        * In most cases openContents() will throw an exception, however in the case of a
        * ZipFileResource it might return null causing an NPE in Util.copyNoClose(), see issue 4359.
        */
       if (in == null) {
         throw new RuntimeException("Unexpected error reading resource '" + resource + "'");
       }
-      // TODO: deprecate com.google.gwt.dev.util.Util and use Guava.
-      Util.copy(in, out);
+      Hasher hasher = Hashing.murmur3_128().newHasher();
+      ByteStreams.copy(in, Funnels.asOutputStream(hasher));
+      String hash = hasher.hash().toString().toUpperCase(Locale.ROOT);
+      return new ContentId(Shared.getTypeName(resource), hash);
     } catch (IOException e) {
       throw new RuntimeException("Unexpected error reading resource '" + resource + "'", e);
     }
-    byte[] content = out.toByteArray();
-    return new ContentId(Shared.getTypeName(resource), Util.computeStrongName(content));
   }
 
   /**
@@ -614,6 +599,6 @@ public class CompilationStateBuilder {
     compilationState.incrementGeneratedSourceCount(builders.size() + cachedUnits.size());
     compilationState.incrementCachedGeneratedSourceCount(cachedUnits.size());
     return compileMoreLater.compile(logger, compilerContext, builders,
-        cachedUnits, CompilerEventType.JDT_COMPILER_CSB_GENERATED);
+        cachedUnits, "CSB Generated");
   }
 }

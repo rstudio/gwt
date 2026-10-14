@@ -24,11 +24,12 @@ import com.google.gwt.dev.javac.UnitCache;
 import com.google.gwt.dev.javac.UnitCacheSingleton;
 import com.google.gwt.dev.util.DiskCachingUtil;
 import com.google.gwt.dev.util.log.PrintWriterTreeLogger;
+import com.google.gwt.dev.util.log.perf.GwtStartupEvent;
 import com.google.gwt.thirdparty.guava.common.collect.ImmutableMap;
-import com.google.gwt.util.tools.Utility;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 
 /**
  * <p>This class contains the {@link #main main method} that starts the code server for
@@ -51,6 +52,7 @@ public class CodeServer {
     if (!options.parseArgs(args)) {
       System.exit(1);
     }
+    new GwtStartupEvent(CodeServer.class);
 
     main(options);
   }
@@ -201,7 +203,7 @@ public class CodeServer {
   private static File ensureWorkDir(Options options) throws IOException {
     File workDir = options.getWorkDir();
     if (workDir == null) {
-      workDir = Utility.makeTemporaryDirectory(null, "gwt-codeserver-");
+      workDir = Files.createTempDirectory("gwt-codeserver-").toFile();
     } else {
       if (!workDir.isDirectory()) {
         throw new IOException("workspace directory doesn't exist: " + workDir);

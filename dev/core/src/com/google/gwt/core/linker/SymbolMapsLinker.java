@@ -37,16 +37,13 @@ import com.google.gwt.core.ext.linker.SyntheticArtifact;
 import com.google.gwt.core.ext.linker.impl.StandardLinkerContext;
 import com.google.gwt.dev.cfg.ResourceLoader;
 import com.google.gwt.dev.cfg.ResourceLoaders;
-import com.google.gwt.dev.util.Util;
 import com.google.gwt.dev.util.collect.HashMap;
-import com.google.gwt.dev.util.log.speedtracer.CompilerEventType;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger.Event;
+import com.google.gwt.dev.util.log.perf.SimpleEvent;
 import com.google.gwt.thirdparty.debugging.sourcemap.SourceMapConsumerV3;
 import com.google.gwt.thirdparty.debugging.sourcemap.SourceMapGeneratorV3;
 import com.google.gwt.thirdparty.debugging.sourcemap.SourceMapParseException;
 import com.google.gwt.thirdparty.guava.common.collect.Maps;
-import com.google.gwt.util.tools.Utility;
+import com.google.gwt.thirdparty.guava.common.io.Closeables;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -55,6 +52,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -261,93 +259,97 @@ public class SymbolMapsLinker extends AbstractLinker {
       artifacts = new ArtifactSet(artifacts);
       Map<Integer, String> permMap = new HashMap<Integer, String>();
 
-      Event writeSymbolMapsEvent =
-          SpeedTracerLogger.start(CompilerEventType.WRITE_SYMBOL_MAPS);
-      ByteArrayOutputStream out = new ByteArrayOutputStream();
-      for (CompilationResult result : artifacts.find(CompilationResult.class)) {
+      try (SimpleEvent ignored = new SimpleEvent("Write SymbolMaps")) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        for (CompilationResult result : artifacts.find(CompilationResult.class)) {
 
-        boolean makeSymbolMaps = true;
+          boolean makeSymbolMaps = true;
 
-        for (SoftPermutation perm : result.getSoftPermutations()) {
-          for (Entry<SelectionProperty, String> propMapEntry : perm.getPropertyMap().entrySet()) {
-            if (propMapEntry.getKey().getName().equals(MAKE_SYMBOL_MAPS)) {
-              makeSymbolMaps = Boolean.valueOf(propMapEntry.getValue());
-            }
-          }
-        }
-
-        permMap.put(result.getPermutationId(), result.getStrongName());
-
-        if (makeSymbolMaps) {
-          PrintWriter pw = new PrintWriter(out);
-          doWriteSymbolMap(logger, result, pw);
-          pw.close();
-
-          doEmitSymbolMap(logger, artifacts, result, out);
-          out.reset();
-        }
-      }
-      writeSymbolMapsEvent.end();
-
-      Event writeSourceMapsEvent =
-          SpeedTracerLogger.start(CompilerEventType.WRITE_SOURCE_MAPS);
-      StandardLinkerContext stdContext = (StandardLinkerContext) context;
-      for (SourceMapArtifact se : artifacts.find(SourceMapArtifact.class)) {
-        // filename is permutation_id/sourceMap<fragmentNumber>.json
-        String sourceMapString = Util.readStreamAsString(se.getContents(logger));
-        String strongName = permMap.get(se.getPermutationId());
-        String partialPath = strongName + "_sourceMap" + se.getFragment() + ".json";
-
-        int fragment = se.getFragment();
-        ScriptFragmentEditsArtifact editArtifact = null;
-        for (ScriptFragmentEditsArtifact mp : artifacts.find(ScriptFragmentEditsArtifact.class)) {
-          if (mp.getStrongName().equals(strongName) && mp.getFragment() == fragment) {
-            editArtifact = mp;
-            artifacts.remove(editArtifact);
-            break;
-          }
-        }
-
-        SyntheticArtifact emArt = null;
-        // no need to adjust source map
-        if (editArtifact == null) {
-          emArt = emitSourceMapString(logger, sourceMapString, partialPath);
-        } else {
-          SourceMapGeneratorV3 sourceMapGenerator = new SourceMapGeneratorV3();
-
-          if (se.getSourceRoot() != null) {
-            // Reapply source root since mergeMapSection() will not copy it.
-            sourceMapGenerator.setSourceRoot(se.getSourceRoot());
-          }
-
-          try {
-            int totalPrefixLines = 0;
-            for (ScriptFragmentEditsArtifact.EditOperation op : editArtifact.editOperations) {
-              if (op.getOp() == ScriptFragmentEditsArtifact.Edit.PREFIX) {
-                totalPrefixLines += op.getNumLines();
+          for (SoftPermutation perm : result.getSoftPermutations()) {
+            for (Entry<SelectionProperty, String> propMapEntry : perm.getPropertyMap().entrySet()) {
+              if (propMapEntry.getKey().getName().equals(MAKE_SYMBOL_MAPS)) {
+                makeSymbolMaps = Boolean.valueOf(propMapEntry.getValue());
               }
             }
+          }
 
-            // TODO(cromwellian): apply insert and remove edits
-            if (stdContext.getModule().shouldEmbedSourceMapContents()) {
-              embedSourcesInSourceMaps(logger, stdContext, artifacts, sourceMapGenerator,
-                  totalPrefixLines, sourceMapString, partialPath);
-            } else {
-              sourceMapGenerator.mergeMapSection(totalPrefixLines, 0, sourceMapString,
-                  (extKey, oldVal, newVal) -> newVal);
-            }
+          permMap.put(result.getPermutationId(), result.getStrongName());
 
-            StringWriter stringWriter = new StringWriter();
-            sourceMapGenerator.appendTo(stringWriter, "sourceMap");
-            emArt = emitSourceMapString(logger, stringWriter.toString(), partialPath);
-          } catch (Exception e) {
-            logger.log(TreeLogger.Type.WARN, "Can't write source map " + partialPath, e);
+          if (makeSymbolMaps) {
+            PrintWriter pw = new PrintWriter(out);
+            doWriteSymbolMap(logger, result, pw);
+            pw.close();
+
+            doEmitSymbolMap(logger, artifacts, result, out);
+            out.reset();
           }
         }
-        artifacts.add(emArt);
-        artifacts.remove(se);
       }
-      writeSourceMapsEvent.end();
+
+      try (SimpleEvent ignored = new SimpleEvent("Write SourceMaps")) {
+        StandardLinkerContext stdContext = (StandardLinkerContext) context;
+        for (SourceMapArtifact se : artifacts.find(SourceMapArtifact.class)) {
+          // filename is permutation_id/sourceMap<fragmentNumber>.json
+          final String sourceMapString;
+          try (InputStream in = se.getContents(logger)) {
+            sourceMapString = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+          } catch (IOException ex) {
+            logger.log(TreeLogger.ERROR, "Error reading source map from cache", ex);
+            throw new UnableToCompleteException();
+          }
+          String strongName = permMap.get(se.getPermutationId());
+          String partialPath = strongName + "_sourceMap" + se.getFragment() + ".json";
+
+          int fragment = se.getFragment();
+          ScriptFragmentEditsArtifact editArtifact = null;
+          for (ScriptFragmentEditsArtifact mp : artifacts.find(ScriptFragmentEditsArtifact.class)) {
+            if (mp.getStrongName().equals(strongName) && mp.getFragment() == fragment) {
+              editArtifact = mp;
+              artifacts.remove(editArtifact);
+              break;
+            }
+          }
+
+          SyntheticArtifact emArt = null;
+          // no need to adjust source map
+          if (editArtifact == null) {
+            emArt = emitSourceMapString(logger, sourceMapString, partialPath);
+          } else {
+            SourceMapGeneratorV3 sourceMapGenerator = new SourceMapGeneratorV3();
+
+            if (se.getSourceRoot() != null) {
+              // Reapply source root since mergeMapSection() will not copy it.
+              sourceMapGenerator.setSourceRoot(se.getSourceRoot());
+            }
+
+            try {
+              int totalPrefixLines = 0;
+              for (ScriptFragmentEditsArtifact.EditOperation op : editArtifact.editOperations) {
+                if (op.getOp() == ScriptFragmentEditsArtifact.Edit.PREFIX) {
+                  totalPrefixLines += op.getNumLines();
+                }
+              }
+
+              // TODO(cromwellian): apply insert and remove edits
+              if (stdContext.getModule().shouldEmbedSourceMapContents()) {
+                embedSourcesInSourceMaps(logger, stdContext, artifacts, sourceMapGenerator,
+                    totalPrefixLines, sourceMapString, partialPath);
+              } else {
+                sourceMapGenerator.mergeMapSection(totalPrefixLines, 0, sourceMapString,
+                    (extKey, oldVal, newVal) -> newVal);
+              }
+
+              StringWriter stringWriter = new StringWriter();
+              sourceMapGenerator.appendTo(stringWriter, "sourceMap");
+              emArt = emitSourceMapString(logger, stringWriter.toString(), partialPath);
+            } catch (Exception e) {
+              logger.log(TreeLogger.Type.WARN, "Can't write source map " + partialPath, e);
+            }
+          }
+          artifacts.add(emArt);
+          artifacts.remove(se);
+        }
+      }
     }
     return artifacts;
   }
@@ -379,21 +381,18 @@ public class SymbolMapsLinker extends AbstractLinker {
         });
 
     for (String sourceFileName : section.getOriginalSources()) {
-      String content;
       InputStream cis = null;
       try {
-        cis = loadSource(logger, sourceFileName, generatedSources,
-            resourceLoader);
+        cis = loadSource(logger, sourceFileName, generatedSources, resourceLoader);
         if (isNull(cis)) {
           cis = context.getModule().findSourceFile(sourceFileName).openContents();
         }
-        content = Util.readStreamAsString(cis);
+        String content = new String(cis.readAllBytes(), StandardCharsets.UTF_8);
         sourceMapGenerator.addSourcesContent(sourceFileName, content);
       } catch (UnableToCompleteException | URISyntaxException | IOException e) {
-        logger.log(TreeLogger.Type.WARN, "Can't write source map " +
-            partialPath, e);
+        logger.log(TreeLogger.Type.WARN, "Can't write source map " + partialPath, e);
       } finally {
-        Utility.close(cis);
+        Closeables.closeQuietly(cis);
       }
     }
   }

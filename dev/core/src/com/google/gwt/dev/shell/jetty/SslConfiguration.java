@@ -16,10 +16,12 @@
 package com.google.gwt.dev.shell.jetty;
 
 import com.google.gwt.core.ext.TreeLogger;
-import com.google.gwt.dev.util.Util;
 
-import java.io.File;
+import java.io.IOException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Optional;
 
 /**
@@ -54,7 +56,7 @@ public class SslConfiguration {
       }
       if ("ssl".equals(tag)) {
         useSsl = true;
-        URL keyStoreUrl = JettyLauncher.class.getResource("localhost.keystore");
+        URL keyStoreUrl = SslConfiguration.class.getResource("localhost.keystore");
         if (keyStoreUrl == null) {
           logger.log(TreeLogger.ERROR, "Default GWT keystore not found");
           return Optional.empty();
@@ -69,8 +71,9 @@ public class SslConfiguration {
         keyStorePassword = value;
       } else if ("pwfile".equals(tag)) {
         useSsl = true;
-        keyStorePassword = Util.readFileAsString(new File(value));
-        if (keyStorePassword == null) {
+        try {
+          keyStorePassword = Files.readString(Paths.get(value), StandardCharsets.UTF_8);
+        } catch (IOException e) {
           logger.log(TreeLogger.ERROR,
                   "Unable to read keystore password from '" + value + "'");
           return Optional.empty();
@@ -85,8 +88,7 @@ public class SslConfiguration {
                   + value + "'");
         }
       } else {
-        logger.log(TreeLogger.ERROR, "Unexpected argument to "
-                + JettyLauncher.class.getSimpleName() + ": " + arg);
+        logger.log(TreeLogger.ERROR, "Unexpected SSL argument: " + arg);
         return Optional.empty();
       }
     }

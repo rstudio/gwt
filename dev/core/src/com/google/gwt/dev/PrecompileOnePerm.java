@@ -23,14 +23,15 @@ import com.google.gwt.dev.cfg.ModuleDef;
 import com.google.gwt.dev.cfg.ModuleDefLoader;
 import com.google.gwt.dev.cfg.PropertyCombinations;
 import com.google.gwt.dev.util.Memory;
-import com.google.gwt.dev.util.Util;
 import com.google.gwt.dev.util.arg.ArgHandlerPerm;
 import com.google.gwt.dev.util.arg.OptionPerm;
-import com.google.gwt.dev.util.log.speedtracer.CompilerEventType;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger.Event;
+import com.google.gwt.dev.util.log.perf.SimpleEvent;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.util.List;
 
 /**
@@ -93,8 +94,6 @@ public class PrecompileOnePerm {
    */
   public static void main(String[] args) {
     Memory.initialize();
-    SpeedTracerLogger.init();
-    Event precompileEvent = SpeedTracerLogger.start(CompilerEventType.PRECOMPILE);
     if (System.getProperty("gwt.jjs.dumpAst") != null) {
       System.out.println("Will dump AST to: "
           + System.getProperty("gwt.jjs.dumpAst"));
@@ -120,7 +119,6 @@ public class PrecompileOnePerm {
         success = true;
       }
     }
-    precompileEvent.end();
     System.exit(success ? 0 : 1);
   }
 
@@ -241,9 +239,18 @@ public class PrecompileOnePerm {
       precompilation.removeSourceArtifacts(logger);
     }
 
-    File precompilationFile = new File(compilerWorkDir,
-        getPrecompileFilename(permId));
-    Util.writeObjectAsFile(logger, precompilationFile, precompilation);
+    File precompilationFile = new File(compilerWorkDir, getPrecompileFilename(permId));
+    // The Precompilation instance must be the only, top-level object written to the stream here,
+    // as it will start a second OOS stream to handle generated artifacts
+    try (SimpleEvent ignored = new SimpleEvent("Write Precompilation to disk");
+         OutputStream out = new FileOutputStream(precompilationFile);
+         ObjectOutputStream objectStream = new ObjectOutputStream(out)) {
+      objectStream.writeObject(precompilation);
+    } catch (IOException e) {
+      logger.log(TreeLogger.ERROR, "Unable to write file: "
+          + precompilationFile.getAbsolutePath(), e);
+      throw new UnableToCompleteException();
+    }
 
     if (branch.isLoggable(TreeLogger.INFO)) {
       branch.log(TreeLogger.INFO, "Precompilation succeeded for permutation "

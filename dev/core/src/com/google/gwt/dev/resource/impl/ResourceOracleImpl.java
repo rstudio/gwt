@@ -19,9 +19,7 @@ import com.google.gwt.core.ext.TreeLogger;
 import com.google.gwt.dev.cfg.ResourceLoader;
 import com.google.gwt.dev.cfg.ResourceLoaders;
 import com.google.gwt.dev.resource.Resource;
-import com.google.gwt.dev.util.log.speedtracer.CompilerEventType;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger.Event;
+import com.google.gwt.dev.util.log.perf.SimpleEvent;
 import com.google.gwt.dev.util.msg.Message0;
 import com.google.gwt.dev.util.msg.Message1String;
 import com.google.gwt.thirdparty.guava.common.collect.HashMultimap;
@@ -36,7 +34,6 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -211,17 +208,16 @@ public class ResourceOracleImpl extends AbstractResourceOracle {
    * Preinitializes the classpath for a given {@link ResourceLoader}.
    */
   public static void preload(TreeLogger logger, ResourceLoader resources) {
-    Event resourceOracle =
-        SpeedTracerLogger.start(CompilerEventType.RESOURCE_ORACLE, "phase", "preload");
-    List<ClassPathEntry> entries = getAllClassPathEntries(logger, resources);
-    for (ClassPathEntry entry : entries) {
-      // We only handle pre-indexing jars, the file system could change.
-      if (entry instanceof ZipFileClassPathEntry) {
-        ZipFileClassPathEntry zpe = (ZipFileClassPathEntry) entry;
-        zpe.index(logger);
+    try (SimpleEvent ignored = new SimpleEvent("ResourceOracle preload")) {
+      List<ClassPathEntry> entries = getAllClassPathEntries(logger, resources);
+      for (ClassPathEntry entry : entries) {
+        // We only handle pre-indexing jars, the file system could change.
+        if (entry instanceof ZipFileClassPathEntry) {
+          ZipFileClassPathEntry zpe = (ZipFileClassPathEntry) entry;
+          zpe.index(logger);
+        }
       }
     }
-    resourceOracle.end();
   }
 
   /**
@@ -241,52 +237,53 @@ public class ResourceOracleImpl extends AbstractResourceOracle {
    * @param logger status and error details are written here
    */
   public synchronized void scanResources(TreeLogger logger) {
-    Event resourceOracle =
-        SpeedTracerLogger.start(CompilerEventType.RESOURCE_ORACLE, "phase", "refresh");
-    TreeLogger refreshBranch = Messages.REFRESHING_RESOURCES.branch(logger, null);
+    try (SimpleEvent ignored = new SimpleEvent("ResourceOracle refresh")) {
 
-    Map<String, ResourceDescription> resourceDescriptionsByPath =
-        new LinkedHashMap<String, ResourceDescription>();
+      TreeLogger refreshBranch = Messages.REFRESHING_RESOURCES.branch(logger, null);
 
-    for (ClassPathEntry classPathEntry : classPathEntries) {
-      TreeLogger branchForClassPathEntry =
-          Messages.EXAMINING_PATH_ROOT.branch(refreshBranch, classPathEntry.getLocation(), null);
+      Map<String, ResourceDescription> resourceDescriptionsByPath =
+          new LinkedHashMap<String, ResourceDescription>();
 
-      Map<AbstractResource, ResourceResolution> prefixesByResource =
-          classPathEntry.findApplicableResources(branchForClassPathEntry, pathPrefixSet);
-      for (Entry<AbstractResource, ResourceResolution> entry : prefixesByResource.entrySet()) {
-        AbstractResource resource = entry.getKey();
-        ResourceResolution resourceResolution = entry.getValue();
-        ResourceDescription resourceDescription =
-            new ResourceDescription(resource, resourceResolution.getPathPrefix());
-        String resourcePath = resourceDescription.resource.getPath();
-        maybeRecordTypeForModule(resourceResolution, resourcePath);
+      for (ClassPathEntry classPathEntry : classPathEntries) {
+        TreeLogger branchForClassPathEntry =
+            Messages.EXAMINING_PATH_ROOT.branch(refreshBranch, classPathEntry.getLocation(), null);
 
-        // In case of collision.
-        if (resourceDescriptionsByPath.containsKey(resourcePath)) {
-          ResourceDescription oldResourceDescription = resourceDescriptionsByPath.get(resourcePath);
-          if (resourceDescription.isPreferredOver(oldResourceDescription)) {
-            resourceDescriptionsByPath.put(resourcePath, resourceDescription);
+        Map<AbstractResource, ResourceResolution> prefixesByResource =
+            classPathEntry.findApplicableResources(branchForClassPathEntry, pathPrefixSet);
+        for (Entry<AbstractResource, ResourceResolution> entry : prefixesByResource.entrySet()) {
+          AbstractResource resource = entry.getKey();
+          ResourceResolution resourceResolution = entry.getValue();
+          ResourceDescription resourceDescription =
+              new ResourceDescription(resource, resourceResolution.getPathPrefix());
+          String resourcePath = resourceDescription.resource.getPath();
+          maybeRecordTypeForModule(resourceResolution, resourcePath);
+
+          // In case of collision.
+          if (resourceDescriptionsByPath.containsKey(resourcePath)) {
+            ResourceDescription oldResourceDescription =
+                resourceDescriptionsByPath.get(resourcePath);
+            if (resourceDescription.isPreferredOver(oldResourceDescription)) {
+              resourceDescriptionsByPath.put(resourcePath, resourceDescription);
+            } else {
+              Messages.IGNORING_SHADOWED_RESOURCE
+                  .log(branchForClassPathEntry, resourcePath, null);
+            }
           } else {
-            Messages.IGNORING_SHADOWED_RESOURCE.log(branchForClassPathEntry, resourcePath, null);
+            resourceDescriptionsByPath.put(resourcePath, resourceDescription);
           }
-        } else {
-          resourceDescriptionsByPath.put(resourcePath, resourceDescription);
         }
       }
+
+      Map<String, Resource> resourcesByPath = new HashMap<String, Resource>();
+      for (Entry<String, ResourceDescription> entry : resourceDescriptionsByPath.entrySet()) {
+        resourcesByPath.put(entry.getKey(), entry.getValue().resource);
+      }
+
+      // Update exposed collections with new (unmodifiable) data structures.
+      exposedResources = Collections.unmodifiableSet(Sets.newHashSet(resourcesByPath.values()));
+      exposedResourceMap = Collections.unmodifiableMap(resourcesByPath);
+      exposedPathNames = Collections.unmodifiableSet(resourcesByPath.keySet());
     }
-
-    Map<String, Resource> resourcesByPath = new HashMap<String, Resource>();
-    for (Entry<String, ResourceDescription> entry : resourceDescriptionsByPath.entrySet()) {
-      resourcesByPath.put(entry.getKey(), entry.getValue().resource);
-    }
-
-    // Update exposed collections with new (unmodifiable) data structures.
-    exposedResources = Collections.unmodifiableSet(Sets.newHashSet(resourcesByPath.values()));
-    exposedResourceMap = Collections.unmodifiableMap(resourcesByPath);
-    exposedPathNames = Collections.unmodifiableSet(resourcesByPath.keySet());
-
-    resourceOracle.end();
   }
 
   private void maybeRecordTypeForModule(ResourceResolution resourceResolution,
@@ -331,14 +328,7 @@ public class ResourceOracleImpl extends AbstractResourceOracle {
           classPath.add(entry);
         }
         continue;
-      } catch (AccessControlException e) {
-        if (logger.isLoggable(TreeLogger.DEBUG)) {
-          logger.log(TreeLogger.DEBUG, "Skipping URL due to access restrictions: " + url);
-        }
-        continue;
-      } catch (URISyntaxException e) {
-        caught = e;
-      } catch (IOException e) {
+      } catch (URISyntaxException | IOException e) {
         caught = e;
       }
       logger.log(TreeLogger.WARN, "Error processing classpath URL '" + url + "'", caught);

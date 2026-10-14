@@ -21,12 +21,10 @@ import com.google.gwt.core.ext.UnableToCompleteException;
 import com.google.gwt.dev.jjs.impl.GwtAstBuilder;
 import com.google.gwt.dev.util.CompilerVersion;
 import com.google.gwt.dev.util.StringInterningObjectInputStream;
-import com.google.gwt.dev.util.log.speedtracer.DevModeEventType;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger.Event;
+import com.google.gwt.dev.util.log.perf.SimpleEvent;
 import com.google.gwt.thirdparty.guava.common.annotations.VisibleForTesting;
 import com.google.gwt.thirdparty.guava.common.collect.Lists;
-import com.google.gwt.util.tools.Utility;
+import com.google.gwt.thirdparty.guava.common.io.Closeables;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -37,6 +35,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.nio.file.Files;
 import java.util.Collections;
 import java.util.List;
 
@@ -120,19 +119,15 @@ class PersistentUnitCacheDir {
    * Load everything cached on disk into memory.
    */
   synchronized void loadUnitMap(PersistentUnitCache destination) {
-    Event loadPersistentUnitEvent =
-        SpeedTracerLogger.start(DevModeEventType.LOAD_PERSISTENT_UNIT_CACHE);
     if (logger.isLoggable(TreeLogger.TRACE)) {
       logger.log(TreeLogger.TRACE, "Looking for previously cached Compilation Units in "
           + getPath());
     }
-    try {
+    try (SimpleEvent ignored = new SimpleEvent("PersistentUnitCacheDir.loadUnitMap")) {
       List<File> files = selectClosedFiles(listFiles(filePrefix));
       for (File cacheFile : files) {
         loadOrDeleteCacheFile(cacheFile, destination);
       }
-    } finally {
-      loadPersistentUnitEvent.end();
     }
   }
 
@@ -140,20 +135,20 @@ class PersistentUnitCacheDir {
    * Delete all cache files in the directory except for the currently open file.
    */
   synchronized void deleteClosedCacheFiles() {
-    SpeedTracerLogger.Event deleteEvent = SpeedTracerLogger.start(DevModeEventType.DELETE_CACHE);
     logger.log(TreeLogger.TRACE, "Deleting cache files from " + dir);
 
-    // We want to delete cache files from previous versions as well.
-    List<File> allVersionsList = listFiles(CACHE_FILE_PREFIX);
-    int deleteCount = 0;
-    for (File candidate : allVersionsList) {
-      if (deleteUnlessOpen(candidate)) {
-        deleteCount++;
+    try (SimpleEvent ignored = new SimpleEvent("PersistentUnitCacheDir.deleteClosedCacheFiles")) {
+      // We want to delete cache files from previous versions as well.
+      List<File> allVersionsList = listFiles(CACHE_FILE_PREFIX);
+      int deleteCount = 0;
+      for (File candidate : allVersionsList) {
+        if (deleteUnlessOpen(candidate)) {
+          deleteCount++;
+        }
       }
-    }
 
-    logger.log(TreeLogger.TRACE, "Deleted " + deleteCount + " cache files from " + dir);
-    deleteEvent.end();
+      logger.log(TreeLogger.TRACE, "Deleted " + deleteCount + " cache files from " + dir);
+    }
   }
 
   /**
@@ -259,9 +254,9 @@ class PersistentUnitCacheDir {
       logger.log(TreeLogger.TRACE, "Ignoring and deleting cache log "
           + cacheFile.getAbsolutePath() + " due to deserialization error.", e);
     } finally {
-      Utility.close(inputStream);
-      Utility.close(bis);
-      Utility.close(fis);
+      Closeables.closeQuietly(inputStream);
+      Closeables.closeQuietly(bis);
+      Closeables.closeQuietly(fis);
     }
 
     if (ok) {
@@ -380,13 +375,17 @@ class PersistentUnitCacheDir {
     }
 
     /**
-     * Closes the current file and deletes it if it's empty. If no file is open, does nothing.
+     * Closes the current file and deletes it if it's empty.
      */
     void close(TreeLogger logger) {
       logger.log(Type.TRACE,
           "Closing cache file: " + file + " (" + unitsWritten + " units written)");
 
-      Utility.close(stream);
+      try {
+        stream.close();
+      } catch (IOException e) {
+        logger.log(Type.WARN, "Error closing compilation unit cache file " + file, e);
+      }
 
       if (unitsWritten == 0) {
         // Remove useless empty file.
@@ -407,7 +406,16 @@ class PersistentUnitCacheDir {
         return new ObjectOutputStream(new BufferedOutputStream(fstream));
       } catch (IOException e) {
         logger.log(Type.ERROR, "Can't open persistent unit cache file", e);
-        Utility.close(fstream);
+        try {
+          if (fstream != null) {
+            fstream.close();
+            if (file.exists()) {
+              Files.delete(file.toPath());
+            }
+          }
+        } catch (IOException ignored) {
+          // We can't handle this, and already logged an error
+        }
         throw new UnableToCompleteException();
       }
     }

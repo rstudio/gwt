@@ -19,12 +19,11 @@ import com.google.gwt.core.ext.TreeLogger;
 import com.google.gwt.core.ext.UnableToCompleteException;
 import com.google.gwt.dev.CompilerContext;
 import com.google.gwt.dev.jdt.TypeRefVisitor;
+import com.google.gwt.dev.jjs.InternalCompilerException;
 import com.google.gwt.dev.jjs.ast.JDeclaredType;
 import com.google.gwt.dev.util.arg.SourceLevel;
 import com.google.gwt.dev.util.collect.Lists;
-import com.google.gwt.dev.util.log.speedtracer.CompilerEventType;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger;
-import com.google.gwt.dev.util.log.speedtracer.SpeedTracerLogger.Event;
+import com.google.gwt.dev.util.log.perf.SimpleEvent;
 import com.google.gwt.thirdparty.guava.common.collect.ArrayListMultimap;
 import com.google.gwt.thirdparty.guava.common.collect.ImmutableMap;
 import com.google.gwt.thirdparty.guava.common.collect.ListMultimap;
@@ -77,8 +76,12 @@ import org.eclipse.jdt.internal.compiler.problem.ProblemReporter;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -197,11 +200,17 @@ public class JdtCompiler {
     @Override
     public CompilationUnitDeclaration parse(ICompilationUnit sourceUnit,
         CompilationResult compilationResult) {
-      // Never dietParse(), otherwise GwtIncompatible annotations in anonymoous inner classes
+      // Never dietParse(), otherwise GwtIncompatible annotations in anonymous inner classes
       // would be ignored.
       boolean saveDiet = this.diet;
       this.diet = false;
-      CompilationUnitDeclaration decl = super.parse(sourceUnit, compilationResult);
+      CompilationUnitDeclaration decl;
+      try {
+        decl = super.parse(sourceUnit, compilationResult);
+      } catch (RuntimeException ex) {
+        throw new InternalCompilerException("Problem parsing "
+            + new String(sourceUnit.getFileName()), ex);
+      }
       this.diet = saveDiet;
       // Remove @GwtIncompatible classes and members.
       // It is safe to remove @GwtIncompatible types, fields and methods on incomplete ASTs due
@@ -377,6 +386,8 @@ public class JdtCompiler {
 
     private final Map<String, CompiledClass> internalTypes;
 
+    private final FileSystem jrt = FileSystems.getFileSystem(URI.create("jrt:/"));
+
     public INameEnvironmentImpl(Set<String> packages, Map<String, CompiledClass> internalTypes) {
       this.packages = packages;
       this.internalTypes = internalTypes;
@@ -384,6 +395,11 @@ public class JdtCompiler {
 
     @Override
     public void cleanup() {
+      try {
+        jrt.close();
+      } catch (IOException e) {
+        // Ignore failure to close read-only jrt file system
+      }
     }
 
     @Override
@@ -540,8 +556,8 @@ public class JdtCompiler {
 
           ClassFileReader classFileReader =
               ClassFileReader.read(openStream, resource.toExternalForm(), true);
-          // In case insensitive file systems we might have found a resource  whose name is different
-          // in case and should not be returned as an answer.
+          // In case-insensitive file systems we might have found a resource whose name is
+          // different in case and should not be returned as an answer.
           if (internalName.equals(CharOperation.charToString(classFileReader.getName()))) {
             return new NameEnvironmentAnswer(classFileReader, null);
           }
@@ -599,13 +615,39 @@ public class JdtCompiler {
         return false;
       }
       // Include class loader check for binary-only annotations.
-      if (caseSensitivePathExists(slashedPackageName)) {
+      if (caseSensitivePackageExists(slashedPackageName)) {
         addPackages(packages, slashedPackageName);
         return true;
       } else {
         notPackages.add(slashedPackageName);
         return false;
       }
+    }
+
+    private boolean caseSensitivePackageExists(String slashedPackage) {
+      URL resourceURL = getClassLoader().getResource(slashedPackage + '/');
+      if (resourceURL == null) {
+        // Can't be found in jars or class directories - might be system defined, test jrt
+        String pkg = slashedPackage.replace('/', '.');
+        // This check is always case-sensitive - we're looking inside the modules, rather than on
+        // the host file system, so no additional checks are needed.
+        return Files.exists(jrt.getPath("/packages", pkg));
+      }
+
+      try {
+        File resourceFile = new File(resourceURL.toURI());
+        return Arrays.asList(resourceFile.getParentFile().list()).contains(resourceFile.getName());
+      } catch (URISyntaxException e) {
+        // The URL can not be converted to a URI.
+      } catch (IllegalArgumentException e) {
+        // A file instance can not be constructed from a URI.
+      }
+
+      // Some exception occurred while trying to make sure the name for the resource on disk is
+      // exactly the same as the one requested including case. If an exception is thrown in the
+      // process we assume that the URI does not refer to a resource in the filesystem and that the
+      // resource obtained from the classloader is the one requested.
+      return true;
     }
   }
 
@@ -616,15 +658,11 @@ public class JdtCompiler {
    */
   public static List<CompilationUnit> compile(TreeLogger logger, CompilerContext compilerContext,
       Collection<CompilationUnitBuilder> builders) throws UnableToCompleteException {
-    Event jdtCompilerEvent = SpeedTracerLogger.start(CompilerEventType.JDT_COMPILER);
-
-    try {
+    try (SimpleEvent ignored = new SimpleEvent("Jdt Compiler")) {
       DefaultUnitProcessor processor = new DefaultUnitProcessor();
       JdtCompiler compiler = new JdtCompiler(compilerContext, processor);
       compiler.doCompile(logger, builders);
       return processor.getResults();
-    } finally {
-      jdtCompilerEvent.end();
     }
   }
 
@@ -1082,28 +1120,6 @@ public class JdtCompiler {
         break;
       }
     }
-  }
-
-  private static boolean caseSensitivePathExists(String resourcePath) {
-    URL resourceURL = getClassLoader().getResource(resourcePath + '/');
-    if (resourceURL == null) {
-      return false;
-    }
-
-    try {
-      File resourceFile = new File(resourceURL.toURI());
-      return Arrays.asList(resourceFile.getParentFile().list()).contains(resourceFile.getName());
-    } catch (URISyntaxException e) {
-      // The URL can not be converted to a URI.
-    } catch (IllegalArgumentException e) {
-      // A file instance can not be constructed from a URI.
-    }
-
-    // Some exception occurred while trying to make sure the name for the resource on disk is
-    // exactly the same as the one requested including case. If an exception is thrown in the
-    // process we assume that the URI does not refer to a resource in the filesystem and that the
-    // resource obtained from the classloader is the one requested.
-    return true;
   }
 
   private static ClassLoader getClassLoader() {
