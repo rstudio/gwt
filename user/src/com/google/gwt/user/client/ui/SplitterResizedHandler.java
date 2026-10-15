@@ -1,3 +1,4 @@
+// CHECKSTYLE_OFF: Copyrighted to RStudio, licensed under the AGPL.
 /*
  * SplitterResizedHandler.java
  *
@@ -12,6 +13,7 @@
  * AGPL (http://www.gnu.org/licenses/agpl-3.0.txt) for more details.
  *
  */
+// CHECKSTYLE_ON
 package com.google.gwt.user.client.ui;
 
 import com.google.gwt.event.shared.EventHandler;

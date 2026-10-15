@@ -1584,7 +1584,7 @@ public class CompilerTest extends ArgProcessorTestBase {
             "}");
 
     MinimalRebuildCache relinkMinimalRebuildCache = new MinimalRebuildCache();
-    File relinkApplicationDir = Files.createTempDir();
+    File relinkApplicationDir = createTempDir();
 
     // Compile the app so that the lambda types in Widgets.trigger() are reachable and their JS is
     // cached.
