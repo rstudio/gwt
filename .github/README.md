@@ -1,7 +1,8 @@
 # GWT for RStudio IDE
 
-The RStudio IDE uses a custom build of GWT, with the resulting SDK checked directly into
-the repo under `rstudio/src/gwt/lib/gwt/gwt-rstudio`.
+The RStudio IDE builds against a custom GWT SDK built from this fork. `main` tracks upstream
+[gwtproject/gwt](https://github.com/gwtproject/gwt); RStudio's patches live on
+`rstudio/<release>` branches.
 
-Details on syncing and building: <https://github.com/rstudio/rstudio/blob/main/src/gwt/tools/build-gwt-README.md>
-
+Branching, building, and publishing the SDK for RStudio:
+<https://github.com/rstudio/rstudio/blob/main/src/gwt/tools/build-gwt-README.md>
