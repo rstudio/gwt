@@ -15,8 +15,11 @@
  */
 package com.google.gwt.user.client.ui;
 
+import com.google.gwt.core.client.Scheduler;
+import com.google.gwt.core.client.Scheduler.ScheduledCommand;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.NativeEvent;
+import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.junit.DoNotRunWith;
 import com.google.gwt.junit.Platform;
 
@@ -229,9 +232,108 @@ public class SplitLayoutPanelTest extends DockLayoutPanelTest {
     assertEquals(1,called.size());
   }
 
+  public void testAriaValueNowReportsSplitterPosition() {
+    SplitLayoutPanel p = createKeyboardPanel();
+    WidgetCollection children = p.getChildren();
+
+    // North splitter at y=250 of a 1000px range; west at x=400.
+    assertEquals("25", getAriaValueNow(children.get(1)));
+    assertEquals("40", getAriaValueNow(children.get(3)));
+    p.removeFromParent();
+  }
+
+  // HtmlUnit ignores the width of a right-anchored layer when computing its offsetLeft.
+  @DoNotRunWith({Platform.HtmlUnitLayout})
+  public void testAriaValueNowReportsReverseSplitterPosition() {
+    SplitLayoutPanel p = createKeyboardPanel();
+
+    // East splitter at x=1010-300-10=700 of a 1000px range.
+    assertEquals("70", getAriaValueNow(p.getChildren().get(5)));
+    p.removeFromParent();
+  }
+
+  public void testAriaValueNowUpdatesAfterKeyboardResize() {
+    final SplitLayoutPanel p = createKeyboardPanel();
+    final Widget westSplitter = p.getChildren().get(3);
+
+    westSplitter.getElement().dispatchEvent(Document.get().createKeyDownEvent(
+        false, false, false, false, KeyCodes.KEY_RIGHT));
+
+    // The splitter defers its layout; this command is scheduled after it.
+    delayTestFinish(5000);
+    Scheduler.get().scheduleDeferred(new ScheduledCommand() {
+      @Override
+      public void execute() {
+        assertEquals("50", getAriaValueNow(westSplitter));
+        p.removeFromParent();
+        finishTest();
+      }
+    });
+  }
+
+  public void testAriaValueNowUpdatesAfterSetWidgetSize() {
+    final SplitLayoutPanel p = createKeyboardPanel();
+    final Widget westSplitter = p.getChildren().get(3);
+
+    p.setWidgetSize(p.getChildren().get(2), 200);
+
+    delayTestFinish(5000);
+    Scheduler.get().scheduleDeferred(new ScheduledCommand() {
+      @Override
+      public void execute() {
+        assertEquals("20", getAriaValueNow(westSplitter));
+        p.removeFromParent();
+        finishTest();
+      }
+    });
+  }
+
+  public void testNoAriaValueNowWithoutKeyboardSupport() {
+    SplitLayoutPanel p = new SplitLayoutPanel(10);
+    RootPanel.get().add(p);
+    p.setSize("1010px", "1010px");
+    p.addWest(new Label("west"), 400);
+    p.add(new Label("center"));
+    p.forceLayout();
+
+    assertEquals("", getAriaValueNow(p.getChildren().get(1)));
+    p.removeFromParent();
+  }
+
+  public void testNoAriaValueNowBeforeLayout() {
+    // A detached panel has no size, so there is no position to report.
+    SplitLayoutPanel p = new SplitLayoutPanel(10, true, 100);
+    p.addWest(new Label("west"), 400);
+    p.add(new Label("center"));
+    p.forceLayout();
+
+    assertEquals("", getAriaValueNow(p.getChildren().get(1)));
+  }
+
   @Override
   protected DockLayoutPanel createDockLayoutPanel() {
     return new SplitLayoutPanel();
+  }
+
+  /**
+   * Creates an attached 1010px-square panel with keyboard-enabled 10px splitters, so each
+   * splitter has a 1000px range. Children: north, splitter, west, splitter, east, splitter,
+   * center.
+   */
+  private SplitLayoutPanel createKeyboardPanel() {
+    SplitLayoutPanel p = new SplitLayoutPanel(10, true, 100);
+    RootPanel.get().add(p);
+    p.setSize("1010px", "1010px");
+    p.addNorth(new Label("north"), 250);
+    p.addWest(new Label("west"), 400);
+    p.addEast(new Label("east"), 300);
+    p.add(new Label("center"));
+    p.forceLayout();
+    return p;
+  }
+
+  private static String getAriaValueNow(Widget splitter) {
+    return splitter.getElement().getAttribute("aria-valuenow");
   }
 
   /** Simulates a mouse drag on a splitter widget by creating and dispatching native events. */
