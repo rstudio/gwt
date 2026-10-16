@@ -252,6 +252,30 @@ public class SplitLayoutPanelTest extends DockLayoutPanelTest {
     p.removeFromParent();
   }
 
+  public void testAriaValueNowClampedWhenSplitterPastFarEdge() {
+    SplitLayoutPanel p = createEmptyKeyboardPanel();
+    p.addWest(new Label("west"), 1200);
+    p.add(new Label("center"));
+    p.forceLayout();
+
+    // The splitter sits at x=1200, past the end of its 1000px range.
+    assertEquals("100", getAriaValueNow(p.getChildren().get(1)));
+    p.removeFromParent();
+  }
+
+  // HtmlUnit ignores the width of a right-anchored layer when computing its offsetLeft.
+  @DoNotRunWith({Platform.HtmlUnitLayout})
+  public void testAriaValueNowClampedWhenSplitterBeforeNearEdge() {
+    SplitLayoutPanel p = createEmptyKeyboardPanel();
+    p.addEast(new Label("east"), 1200);
+    p.add(new Label("center"));
+    p.forceLayout();
+
+    // The splitter sits at x=1010-1200-10=-200, before the start of its range.
+    assertEquals("0", getAriaValueNow(p.getChildren().get(1)));
+    p.removeFromParent();
+  }
+
   public void testAriaValueNowUpdatesAfterKeyboardResize() {
     final SplitLayoutPanel p = createKeyboardPanel();
     final Widget westSplitter = p.getChildren().get(3);
@@ -329,6 +353,14 @@ public class SplitLayoutPanelTest extends DockLayoutPanelTest {
     p.addEast(new Label("east"), 300);
     p.add(new Label("center"));
     p.forceLayout();
+    return p;
+  }
+
+  /** Creates an attached, empty 1010px-square panel with keyboard-enabled 10px splitters. */
+  private SplitLayoutPanel createEmptyKeyboardPanel() {
+    SplitLayoutPanel p = new SplitLayoutPanel(10, true, 100);
+    RootPanel.get().add(p);
+    p.setSize("1010px", "1010px");
     return p;
   }
 

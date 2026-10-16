@@ -326,7 +326,9 @@ public class SplitLayoutPanel extends DockLayoutPanel {
         // The panel is detached or hidden, so there is no position to report yet.
         return;
       }
-      Property.VALUENOW.set(getElement(), Math.round(100.0 * getOffsetInPanel() / range));
+      long percent = Math.round(100.0 * getOffsetInPanel() / range);
+      // Children larger than the panel can place the splitter outside it.
+      Property.VALUENOW.set(getElement(), Math.max(0, Math.min(100, percent)));
     }
 
     private double getAssociatedWidgetSize()
