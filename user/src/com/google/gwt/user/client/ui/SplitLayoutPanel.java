@@ -16,6 +16,7 @@
 package com.google.gwt.user.client.ui;
 
 import com.google.gwt.aria.client.OrientationValue;
+import com.google.gwt.aria.client.Property;
 import com.google.gwt.aria.client.Roles;
 import com.google.gwt.core.client.Duration;
 import com.google.gwt.core.client.Scheduler;
@@ -87,6 +88,16 @@ public class SplitLayoutPanel extends DockLayoutPanel {
     }
 
     @Override
+    protected int getOffsetInPanel() {
+      return getWidgetContainerElement(this).getOffsetLeft();
+    }
+
+    @Override
+    protected int getPanelSize() {
+      return SplitLayoutPanel.this.getElement().getClientWidth();
+    }
+
+    @Override
     protected int getTargetPosition() {
       return target.getAbsoluteLeft();
     }
@@ -97,7 +108,7 @@ public class SplitLayoutPanel extends DockLayoutPanel {
     }
   }
 
-  abstract class Splitter extends Widget {
+  abstract class Splitter extends Widget implements RequiresResize {
     protected final Widget target;
 
     private int offset;
@@ -105,6 +116,7 @@ public class SplitLayoutPanel extends DockLayoutPanel {
     private ScheduledCommand layoutCommand;
 
     private final boolean reverse;
+    private final boolean keyboardSupport;
     private int minSize;
     private int snapClosedSize = -1;
     private double centerSize, syncedCenterSize;
@@ -115,6 +127,7 @@ public class SplitLayoutPanel extends DockLayoutPanel {
     public Splitter(Widget target, boolean reverse, boolean keyboardSupport) {
       this.target = target;
       this.reverse = reverse;
+      this.keyboardSupport = keyboardSupport;
 
       setElement(Document.get().createDivElement());
       int eventBits = Event.ONMOUSEDOWN | Event.ONMOUSEUP | Event.ONMOUSEMOVE | Event.ONDBLCLICK;
@@ -246,6 +259,17 @@ public class SplitLayoutPanel extends DockLayoutPanel {
       }
     }
 
+    /**
+     * Called after every layout of the panel, including the deferred layouts that dragging and
+     * keyboard resizing schedule, so the reported position never goes stale.
+     */
+    @Override
+    public void onResize() {
+      if (keyboardSupport) {
+        updateAriaValueNow();
+      }
+    }
+
     public void setMinSize(int minSize) {
       this.minSize = minSize;
       LayoutData layout = (LayoutData) target.getLayoutData();
@@ -269,6 +293,10 @@ public class SplitLayoutPanel extends DockLayoutPanel {
 
     protected abstract int getEventPosition(Event event);
 
+    protected abstract int getOffsetInPanel();
+
+    protected abstract int getPanelSize();
+
     protected abstract int getTargetPosition();
 
     protected abstract int getTargetSize();
@@ -287,6 +315,22 @@ public class SplitLayoutPanel extends DockLayoutPanel {
                 0);
     }
     
+    /**
+     * A focusable separator must report its position. Report it as a percentage of the distance
+     * the splitter can travel, from 0 at the panel's left or top edge to 100 at its right or
+     * bottom edge, matching the default aria-valuemin and aria-valuemax.
+     */
+    private void updateAriaValueNow() {
+      int range = getPanelSize() - getSplitterSize();
+      if (range <= 0) {
+        // The panel is detached or hidden, so there is no position to report yet.
+        return;
+      }
+      long percent = Math.round(100.0 * getOffsetInPanel() / range);
+      // Children larger than the panel can place the splitter outside it.
+      Property.VALUENOW.set(getElement(), Math.max(0, Math.min(100, percent)));
+    }
+
     private double getAssociatedWidgetSize()
     {
       return ((LayoutData) target.getLayoutData()).size;
@@ -353,6 +397,16 @@ public class SplitLayoutPanel extends DockLayoutPanel {
     @Override
     protected int getEventPosition(Event event) {
       return event.getClientY();
+    }
+
+    @Override
+    protected int getOffsetInPanel() {
+      return getWidgetContainerElement(this).getOffsetTop();
+    }
+
+    @Override
+    protected int getPanelSize() {
+      return SplitLayoutPanel.this.getElement().getClientHeight();
     }
 
     @Override
