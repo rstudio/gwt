@@ -42,6 +42,7 @@ import com.google.gwt.view.client.Range;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Bases tests for subclasses of {@link AbstractCellTable}.
@@ -1273,6 +1274,51 @@ public abstract class AbstractCellTableTestBase<T extends AbstractCellTable<Stri
         KeyCodes.KEY_ENTER);
     getHeaderElement(table, 0).getFirstChildElement().dispatchEvent(enter);
     assertEquals(Arrays.asList(true, false), sorts);
+
+    // Cleanup.
+    RootPanel.get().remove(table);
+  }
+
+  public void testSortableHeaderEventsReachHeader() {
+    T table = createAbstractHasData();
+    final List<String> previews = new ArrayList<String>();
+    Column<String, String> column = new TextColumn<String>() {
+      @Override
+      public String getValue(String object) {
+        return object;
+      }
+    };
+    column.setSortable(true);
+    table.addColumn(column, new TextHeader("Column 0") {
+      @Override
+      public boolean onPreviewColumnSortEvent(Context context, Element elem,
+          NativeEvent event) {
+        previews.add(elem.getTagName().toLowerCase(Locale.ROOT));
+        return false;
+      }
+    });
+    table.setRowData(0, Arrays.asList("a", "b"));
+    table.getPresenter().flush();
+    RootPanel.get().add(table);
+
+    final List<Boolean> sorts = new ArrayList<Boolean>();
+    table.addColumnSortHandler(new ColumnSortEvent.Handler() {
+      @Override
+      public void onColumnSort(ColumnSortEvent event) {
+        sorts.add(event.isSortAscending());
+      }
+    });
+
+    // A click on the th itself, outside the button, still lets the header veto the sort.
+    NativeEvent click = Document.get().createClickEvent(0, 0, 0, 0, 0, false, false, false, false);
+    getHeaderElement(table, 0).dispatchEvent(click);
+
+    // So does a click on the sorted header's button itself, rather than on its text.
+    table.getColumnSortList().push(column);
+    getHeaderElement(table, 0).getFirstChildElement().dispatchEvent(click);
+
+    assertEquals(Arrays.asList("th", "th"), previews);
+    assertEquals(0, sorts.size());
 
     // Cleanup.
     RootPanel.get().remove(table);

@@ -237,6 +237,25 @@ public abstract class AbstractHeaderOrFooterBuilder<T> implements HeaderBuilder<
   }
 
   /**
+   * Enables header-specific event handling for the specified element, so events
+   * on the element or its children reach the header, including
+   * {@link Header#onPreviewColumnSortEvent}. {@link #renderHeader} does this for
+   * the element it renders into; call this for an ancestor that also takes events.
+   *
+   * @param builder the builder to associate with the header. The builder must
+   *          be in a state where an attribute can be added.
+   * @param header the header to associate
+   */
+  protected final void enableHeaderHandlers(ElementBuilderBase<?> builder, Header<?> header) {
+    String headerId = idToHeaderMap.getKey(header);
+    if (headerId == null) {
+      headerId = "header-" + Document.get().createUniqueId();
+      idToHeaderMap.put(headerId, header);
+    }
+    builder.attribute(HEADER_ATTRIBUTE, headerId);
+  }
+
+  /**
    * Get the header or footer at the specified index.
    * 
    * @param index the column index of the header
@@ -264,13 +283,7 @@ public abstract class AbstractHeaderOrFooterBuilder<T> implements HeaderBuilder<
    * @param header the {@link Header} to render
    */
   protected final <H> void renderHeader(ElementBuilderBase<?> out, Context context, Header<H> header) {
-    // Generate a unique ID for the header.
-    String headerId = idToHeaderMap.getKey(header);
-    if (headerId == null) {
-      headerId = "header-" + Document.get().createUniqueId();
-      idToHeaderMap.put(headerId, header);
-    }
-    out.attribute(HEADER_ATTRIBUTE, headerId);
+    enableHeaderHandlers(out, header);
 
     // Render the cell into the builder.
     SafeHtmlBuilder sb = new SafeHtmlBuilder();

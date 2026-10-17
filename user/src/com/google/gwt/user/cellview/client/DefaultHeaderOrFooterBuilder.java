@@ -161,6 +161,10 @@ public class DefaultHeaderOrFooterBuilder<T> extends AbstractHeaderOrFooterBuild
         if (isSorted) {
           th.attribute("aria-sort", isSortAscending ? "ascending" : "descending");
         }
+        // The header content is rendered inside the button (and, when sorted, inside the
+        // sort icon wrapper too), so events on the th or the button itself need this to
+        // reach the header.
+        enableHeaderHandlers(th, header);
         DivBuilder sortButton = th.startDiv().attribute("role", "button").tabIndex(-1);
         renderSortableHeader(sortButton, context, header, isSorted, isSortAscending);
         sortButton.endDiv();
