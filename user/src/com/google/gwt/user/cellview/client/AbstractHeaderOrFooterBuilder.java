@@ -237,6 +237,25 @@ public abstract class AbstractHeaderOrFooterBuilder<T> implements HeaderBuilder<
   }
 
   /**
+   * Enables header-specific event handling for the specified element, so events
+   * on the element or its children reach the header, including
+   * {@link Header#onPreviewColumnSortEvent}. {@link #renderHeader} does this for
+   * the element it renders into; call this for an ancestor that also takes events.
+   *
+   * @param builder the builder to associate with the header. The builder must
+   *          be in a state where an attribute can be added.
+   * @param header the header to associate
+   */
+  protected final void enableHeaderHandlers(ElementBuilderBase<?> builder, Header<?> header) {
+    String headerId = idToHeaderMap.getKey(header);
+    if (headerId == null) {
+      headerId = "header-" + Document.get().createUniqueId();
+      idToHeaderMap.put(headerId, header);
+    }
+    builder.attribute(HEADER_ATTRIBUTE, headerId);
+  }
+
+  /**
    * Get the header or footer at the specified index.
    * 
    * @param index the column index of the header
@@ -264,13 +283,7 @@ public abstract class AbstractHeaderOrFooterBuilder<T> implements HeaderBuilder<
    * @param header the {@link Header} to render
    */
   protected final <H> void renderHeader(ElementBuilderBase<?> out, Context context, Header<H> header) {
-    // Generate a unique ID for the header.
-    String headerId = idToHeaderMap.getKey(header);
-    if (headerId == null) {
-      headerId = "header-" + Document.get().createUniqueId();
-      idToHeaderMap.put(headerId, header);
-    }
-    out.attribute(HEADER_ATTRIBUTE, headerId);
+    enableHeaderHandlers(out, header);
 
     // Render the cell into the builder.
     SafeHtmlBuilder sb = new SafeHtmlBuilder();
@@ -426,18 +439,20 @@ public abstract class AbstractHeaderOrFooterBuilder<T> implements HeaderBuilder<
    * @return the rendered HTML
    */
   private SafeHtml getSortIcon(boolean isAscending) {
+    // The icon is decorative: the header builder reports the sort direction with
+    // aria-sort on the th, and alt text here would repeat it in the header's name.
     if (isAscending) {
       if (sortAscIconHtml == null) {
         AbstractImagePrototype proto =
             AbstractImagePrototype.create(table.getResources().sortAscending());
-        sortAscIconHtml = addAltText(SafeHtmlUtils.fromTrustedString(proto.getHTML()), "Ascending sort");
+        sortAscIconHtml = addAltText(SafeHtmlUtils.fromTrustedString(proto.getHTML()), "");
       }
       return sortAscIconHtml;
     } else {
       if (sortDescIconHtml == null) {
         AbstractImagePrototype proto =
             AbstractImagePrototype.create(table.getResources().sortDescending());
-        sortDescIconHtml = addAltText(SafeHtmlUtils.fromTrustedString(proto.getHTML()), "Descending sort");
+        sortDescIconHtml = addAltText(SafeHtmlUtils.fromTrustedString(proto.getHTML()), "");
       }
       return sortDescIconHtml;
     }

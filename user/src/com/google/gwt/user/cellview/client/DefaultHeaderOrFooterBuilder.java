@@ -16,6 +16,7 @@
 package com.google.gwt.user.cellview.client;
 
 import com.google.gwt.cell.client.Cell.Context;
+import com.google.gwt.dom.builder.shared.DivBuilder;
 import com.google.gwt.dom.builder.shared.TableCellBuilder;
 import com.google.gwt.dom.builder.shared.TableRowBuilder;
 import com.google.gwt.user.cellview.client.AbstractCellTable.Style;
@@ -153,11 +154,25 @@ public class DefaultHeaderOrFooterBuilder<T> extends AbstractHeaderOrFooterBuild
       // Build the header.
       Context context = new Context(0, curColumn - prevColspan, header.getKey());
       if (isSortable) {
-        // TODO: Figure out aria-label and translation of label text
-        th.attribute("role", "button");
-        th.tabIndex(-1);
+        // A role on the th would replace its columnheader role, which is what carries
+        // aria-sort, so the sort control is a button inside the th instead. It's a div
+        // rather than a <button> because the table sorts on Enter keydown, and the click
+        // a <button> synthesizes from Enter would sort a second time.
+        if (isSorted) {
+          th.attribute("aria-sort", isSortAscending ? "ascending" : "descending");
+        } else {
+          // Unsorted headers used to render straight into the th, so events on its padding
+          // reached the header. Keep that. Sorted ones never passed sort icon events to the
+          // header, and marking their th would make an interactive header cell (such as an
+          // ActionCell) treat an icon click as its own.
+          enableHeaderHandlers(th, header);
+        }
+        DivBuilder sortButton = th.startDiv().attribute("role", "button").tabIndex(-1);
+        renderSortableHeader(sortButton, context, header, isSorted, isSortAscending);
+        sortButton.endDiv();
+      } else {
+        renderSortableHeader(th, context, header, isSorted, isSortAscending);
       }
-      renderSortableHeader(th, context, header, isSorted, isSortAscending);
     }
     th.endTH();
   }
