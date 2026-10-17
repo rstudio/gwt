@@ -426,18 +426,20 @@ public abstract class AbstractHeaderOrFooterBuilder<T> implements HeaderBuilder<
    * @return the rendered HTML
    */
   private SafeHtml getSortIcon(boolean isAscending) {
+    // The icon is decorative: the header builder reports the sort direction with
+    // aria-sort on the th, and alt text here would repeat it in the header's name.
     if (isAscending) {
       if (sortAscIconHtml == null) {
         AbstractImagePrototype proto =
             AbstractImagePrototype.create(table.getResources().sortAscending());
-        sortAscIconHtml = addAltText(SafeHtmlUtils.fromTrustedString(proto.getHTML()), "Ascending sort");
+        sortAscIconHtml = addAltText(SafeHtmlUtils.fromTrustedString(proto.getHTML()), "");
       }
       return sortAscIconHtml;
     } else {
       if (sortDescIconHtml == null) {
         AbstractImagePrototype proto =
             AbstractImagePrototype.create(table.getResources().sortDescending());
-        sortDescIconHtml = addAltText(SafeHtmlUtils.fromTrustedString(proto.getHTML()), "Descending sort");
+        sortDescIconHtml = addAltText(SafeHtmlUtils.fromTrustedString(proto.getHTML()), "");
       }
       return sortDescIconHtml;
     }

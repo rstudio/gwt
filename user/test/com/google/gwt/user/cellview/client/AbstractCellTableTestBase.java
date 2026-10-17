@@ -21,6 +21,7 @@ import com.google.gwt.cell.client.Cell.Context;
 import com.google.gwt.cell.client.TextCell;
 import com.google.gwt.dom.builder.shared.TableRowBuilder;
 import com.google.gwt.dom.client.Document;
+import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.NativeEvent;
 import com.google.gwt.dom.client.NodeList;
 import com.google.gwt.dom.client.Style.Unit;
@@ -39,6 +40,7 @@ import com.google.gwt.user.client.ui.RootPanel;
 import com.google.gwt.view.client.Range;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -1206,6 +1208,71 @@ public abstract class AbstractCellTableTestBase<T extends AbstractCellTable<Stri
     assertEquals(table.getColumn(0), sortList.get(0).getColumn());
     assertFalse(sortList.get(0).isAscending());
     assertEquals(0, lastSorted.size());
+
+    // Cleanup.
+    RootPanel.get().remove(table);
+  }
+
+  public void testSortableHeaderAria() {
+    T table = createAbstractHasData(new TextCell());
+    table.getColumn(0).setSortable(true);
+    table.getPresenter().flush();
+    RootPanel.get().add(table);
+
+    // The sortable th keeps its columnheader role; the button is inside it.
+    TableCellElement sortableTh = getHeaderElement(table, 0);
+    assertFalse(sortableTh.hasAttribute("role"));
+    assertFalse(sortableTh.hasAttribute("aria-sort"));
+    Element sortButton = sortableTh.getFirstChildElement();
+    assertEquals("button", sortButton.getAttribute("role"));
+    assertEquals(-1, sortButton.getTabIndex());
+    assertEquals("Column 0", sortButton.getInnerText());
+
+    // A column that isn't sortable gets no button.
+    TableCellElement plainTh = getHeaderElement(table, 1);
+    assertFalse(plainTh.hasAttribute("role"));
+    assertFalse(plainTh.hasAttribute("aria-sort"));
+    assertNull(plainTh.getFirstChildElement());
+    assertEquals("Column 1", plainTh.getInnerText());
+
+    // aria-sort follows the sort direction.
+    ColumnSortList sortList = table.getColumnSortList();
+    sortList.push(table.getColumn(0));
+    assertEquals("ascending", getHeaderElement(table, 0).getAttribute("aria-sort"));
+
+    // The sort icon is decorative, so it doesn't add to the header's name.
+    Element sortIcon = getHeaderElement(table, 0).getElementsByTagName("img").getItem(0);
+    assertTrue(sortIcon.hasAttribute("alt"));
+    assertEquals("", sortIcon.getAttribute("alt"));
+    sortList.push(table.getColumn(0));
+    assertEquals("descending", getHeaderElement(table, 0).getAttribute("aria-sort"));
+    assertFalse(getHeaderElement(table, 1).hasAttribute("aria-sort"));
+
+    // Cleanup.
+    RootPanel.get().remove(table);
+  }
+
+  public void testSortButtonActivation() {
+    T table = createAbstractHasData(new TextCell());
+    table.getColumn(0).setSortable(true);
+    table.getPresenter().flush();
+    RootPanel.get().add(table);
+
+    final List<Boolean> sorts = new ArrayList<Boolean>();
+    table.addColumnSortHandler(new ColumnSortEvent.Handler() {
+      @Override
+      public void onColumnSort(ColumnSortEvent event) {
+        sorts.add(event.isSortAscending());
+      }
+    });
+
+    // Clicking the button inside the th, or pressing Enter on it, sorts the column.
+    NativeEvent click = Document.get().createClickEvent(0, 0, 0, 0, 0, false, false, false, false);
+    getHeaderElement(table, 0).getFirstChildElement().dispatchEvent(click);
+    NativeEvent enter = Document.get().createKeyDownEvent(false, false, false, false,
+        KeyCodes.KEY_ENTER);
+    getHeaderElement(table, 0).getFirstChildElement().dispatchEvent(enter);
+    assertEquals(Arrays.asList(true, false), sorts);
 
     // Cleanup.
     RootPanel.get().remove(table);
