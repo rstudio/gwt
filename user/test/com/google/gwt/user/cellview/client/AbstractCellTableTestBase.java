@@ -19,7 +19,9 @@ import com.google.gwt.cell.client.AbstractCell;
 import com.google.gwt.cell.client.Cell;
 import com.google.gwt.cell.client.Cell.Context;
 import com.google.gwt.cell.client.TextCell;
+import com.google.gwt.cell.client.ValueUpdater;
 import com.google.gwt.dom.builder.shared.TableRowBuilder;
+import com.google.gwt.dom.client.BrowserEvents;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.NativeEvent;
@@ -1281,6 +1283,20 @@ public abstract class AbstractCellTableTestBase<T extends AbstractCellTable<Stri
 
   public void testSortableHeaderEventsReachHeader() {
     T table = createAbstractHasData();
+    // The header's cell records the element it's handed for each click it gets.
+    final List<String> cellClicks = new ArrayList<String>();
+    Cell<String> headerCell = new AbstractCell<String>(BrowserEvents.CLICK) {
+      @Override
+      public void render(Context context, String value, SafeHtmlBuilder sb) {
+        sb.appendEscaped(value);
+      }
+
+      @Override
+      public void onBrowserEvent(Context context, Element parent, String value,
+          NativeEvent event, ValueUpdater<String> valueUpdater) {
+        cellClicks.add(parent.getTagName().toLowerCase(Locale.ROOT));
+      }
+    };
     final List<String> previews = new ArrayList<String>();
     Column<String, String> column = new TextColumn<String>() {
       @Override
@@ -1289,7 +1305,12 @@ public abstract class AbstractCellTableTestBase<T extends AbstractCellTable<Stri
       }
     };
     column.setSortable(true);
-    table.addColumn(column, new TextHeader("Column 0") {
+    table.addColumn(column, new Header<String>(headerCell) {
+      @Override
+      public String getValue() {
+        return "Column 0";
+      }
+
       @Override
       public boolean onPreviewColumnSortEvent(Context context, Element elem,
           NativeEvent event) {
@@ -1309,16 +1330,22 @@ public abstract class AbstractCellTableTestBase<T extends AbstractCellTable<Stri
       }
     });
 
-    // A click on the th itself, outside the button, still lets the header veto the sort.
+    // A click on an unsorted header's th, outside its button, reaches the header, which
+    // can veto the sort.
     NativeEvent click = Document.get().createClickEvent(0, 0, 0, 0, 0, false, false, false, false);
     getHeaderElement(table, 0).dispatchEvent(click);
-
-    // So does a click on the sorted header's button itself, rather than on its text.
-    table.getColumnSortList().push(column);
-    getHeaderElement(table, 0).getFirstChildElement().dispatchEvent(click);
-
-    assertEquals(Arrays.asList("th", "th"), previews);
+    assertEquals(Arrays.asList("th"), cellClicks);
+    assertEquals(Arrays.asList("th"), previews);
     assertEquals(0, sorts.size());
+
+    // Once sorted, the header renders into a wrapper beside the sort icon: a click on its
+    // text reaches the header, but a click on the icon doesn't reach the header's cell.
+    table.getColumnSortList().push(column);
+    Element iconWrapper = getHeaderElement(table, 0).getFirstChildElement().getFirstChildElement();
+    iconWrapper.getFirstChildElement().dispatchEvent(click);
+    iconWrapper.getLastChild().<Element>cast().dispatchEvent(click);
+    assertEquals(Arrays.asList("th", "div"), cellClicks);
+    assertEquals(Arrays.asList("th", "div"), previews);
 
     // Cleanup.
     RootPanel.get().remove(table);

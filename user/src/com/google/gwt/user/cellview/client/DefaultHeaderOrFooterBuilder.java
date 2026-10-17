@@ -160,11 +160,13 @@ public class DefaultHeaderOrFooterBuilder<T> extends AbstractHeaderOrFooterBuild
         // a <button> synthesizes from Enter would sort a second time.
         if (isSorted) {
           th.attribute("aria-sort", isSortAscending ? "ascending" : "descending");
+        } else {
+          // Unsorted headers used to render straight into the th, so events on its padding
+          // reached the header. Keep that. Sorted ones never passed sort icon events to the
+          // header, and marking their th would make an interactive header cell (such as an
+          // ActionCell) treat an icon click as its own.
+          enableHeaderHandlers(th, header);
         }
-        // The header content is rendered inside the button (and, when sorted, inside the
-        // sort icon wrapper too), so events on the th or the button itself need this to
-        // reach the header.
-        enableHeaderHandlers(th, header);
         DivBuilder sortButton = th.startDiv().attribute("role", "button").tabIndex(-1);
         renderSortableHeader(sortButton, context, header, isSorted, isSortAscending);
         sortButton.endDiv();
