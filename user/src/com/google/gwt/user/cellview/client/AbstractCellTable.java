@@ -528,8 +528,8 @@ public abstract class AbstractCellTable<T> extends AbstractHasData<T> {
        * Reattach the section. If next section is null, the section will be
        * appended instead.
        */
-      reattachSectionElement(parent, section, nextSection);
       table.onSectionRendered(section);
+      reattachSectionElement(parent, section, nextSection);
 
       // Detach the event listener.
       if (!table.isAttached()) {
@@ -597,8 +597,8 @@ public abstract class AbstractCellTable<T> extends AbstractHasData<T> {
        * Reattach the section. If next section is null, the section will be
        * appended instead.
        */
-      reattachSectionElement(parent, section, nextSection);
       table.onSectionRendered(section);
+      reattachSectionElement(parent, section, nextSection);
 
       // Detach the event listener.
       if (!table.isAttached()) {
@@ -1709,8 +1709,9 @@ public abstract class AbstractCellTable<T> extends AbstractHasData<T> {
   protected abstract void doSetHeaderVisible(boolean isFooter, boolean isVisible);
 
   /**
-   * Called after the rows of a head, body or foot section are replaced, so
-   * subclasses can post-process the rendered rows. The default does nothing.
+   * Called after the rows of a head, body or foot section are replaced, while
+   * the section is still detached from the document, so subclasses can
+   * post-process the rendered rows. The default does nothing.
    *
    * @param section the section whose rows were just rendered
    */
