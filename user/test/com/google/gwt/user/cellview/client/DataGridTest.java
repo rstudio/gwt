@@ -19,6 +19,7 @@ import com.google.gwt.cell.client.TextCell;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.builder.shared.TableRowBuilder;
 import com.google.gwt.dom.client.Element;
+import com.google.gwt.dom.client.NodeList;
 import com.google.gwt.dom.client.TableCellElement;
 import com.google.gwt.dom.client.TableElement;
 import com.google.gwt.dom.client.TableRowElement;
@@ -246,6 +247,26 @@ public class DataGridTest extends AbstractCellTableTestBase<DataGrid<String>> {
     TableCellElement th = table.getTableHeadElement().getRows().getItem(0).getCells().getItem(2);
     assertEquals("columnheader", th.getAttribute("role"));
     assertEquals("ascending", th.getAttribute("aria-sort"));
+
+    RootPanel.get().remove(table);
+  }
+
+  /**
+   * Test that a disabled (null) loading indicator leaves no blank row in the
+   * grid while it loads.
+   */
+  public void testNullLoadingIndicatorAddsNoRow() {
+    DataGrid<String> table = createAbstractHasData(new TextCell());
+    table.setLoadingIndicator(new Label("Loading"));
+    table.setLoadingIndicator(null);
+    RootPanel.get().add(table);
+    table.getPresenter().flush();
+
+    // While loading, the only td in the grid is the indicator container's.
+    NodeList<Element> tds = table.getElement().getElementsByTagName("td");
+    assertEquals(1, tds.getLength());
+    assertFalse(tds.getItem(0).hasAttribute("role"));
+    assertFalse(tds.getItem(0).getParentElement().hasAttribute("role"));
 
     RootPanel.get().remove(table);
   }

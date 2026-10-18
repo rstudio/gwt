@@ -539,14 +539,24 @@ public class DataGrid<T> extends AbstractCellTable<T> implements RequiresResize 
 
   /**
    * Show a widget in a message container (loading or empty table), whose
-   * single cell reads as a row of the grid.
+   * single cell reads as a row of the grid. A null widget disables the
+   * message, so its empty cell must not read as a blank row.
    */
   private static void setMessageWidget(FlexTable container, Widget widget) {
     container.setWidget(0, 0, widget);
     TableElement table = container.getElement().cast();
-    table.getTBodies().getItem(0).setAttribute("role", "rowgroup");
-    container.getRowFormatter().getElement(0).setAttribute("role", "row");
-    container.getCellFormatter().getElement(0, 0).setAttribute("role", "cell");
+    Element[] parts = {
+        table.getTBodies().getItem(0),
+        container.getRowFormatter().getElement(0),
+        container.getCellFormatter().getElement(0, 0)};
+    String[] roles = {"rowgroup", "row", "cell"};
+    for (int i = 0; i < parts.length; i++) {
+      if (widget == null) {
+        parts[i].removeAttribute("role");
+      } else {
+        parts[i].setAttribute("role", roles[i]);
+      }
+    }
   }
 
   final TableWidget tableData;
