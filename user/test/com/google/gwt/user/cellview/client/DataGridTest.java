@@ -161,6 +161,30 @@ public class DataGridTest extends AbstractCellTableTestBase<DataGrid<String>> {
   }
 
   /**
+   * Test that footer rows and their th cells get roles, like the header.
+   */
+  public void testTableRolesFooter() {
+    DataGrid<String> table = createAbstractHasData();
+    table.addColumn(new TextColumn<String>() {
+      @Override
+      public String getValue(String object) {
+        return object;
+      }
+    }, new TextHeader("Name"), new TextHeader("Total"));
+    RootPanel.get().add(table);
+    table.setRowData(Arrays.asList("a"));
+    table.getPresenter().flush();
+
+    TableRowElement footerRow = table.getTableFootElement().getRows().getItem(0);
+    assertEquals("row", footerRow.getAttribute("role"));
+    TableCellElement footerCell = footerRow.getCells().getItem(0);
+    assertEquals("Total", footerCell.getInnerText());
+    assertEquals("columnheader", footerCell.getAttribute("role"));
+
+    RootPanel.get().remove(table);
+  }
+
+  /**
    * Test that an empty role attribute counts as no role.
    */
   public void testTableRolesTreatEmptyRoleAsAbsent() {
