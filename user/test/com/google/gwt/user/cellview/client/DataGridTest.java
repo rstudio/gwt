@@ -144,6 +144,22 @@ public class DataGridTest extends AbstractCellTableTestBase<DataGrid<String>> {
   }
 
   /**
+   * Test that a partial redraw only stamps the rows it inserts, so updating
+   * one row doesn't walk the whole body.
+   */
+  public void testPartialRedrawOnlyStampsNewRows() {
+    DataGrid<String> table = createRoleTestGrid();
+
+    table.getRowElement(0).removeAttribute("role");
+    table.setRowData(1, Arrays.asList("B"));
+    table.getPresenter().flush();
+    assertFalse(table.getRowElement(0).hasAttribute("role"));
+    assertEquals("row", table.getRowElement(1).getAttribute("role"));
+
+    RootPanel.get().remove(table);
+  }
+
+  /**
    * Test that a row the builder marks presentational keeps that role and its
    * cells get none.
    */
