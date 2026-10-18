@@ -15,13 +15,23 @@
  */
 package com.google.gwt.user.cellview.client;
 
+import com.google.gwt.cell.client.TextCell;
 import com.google.gwt.core.client.GWT;
+import com.google.gwt.dom.builder.shared.TableRowBuilder;
+import com.google.gwt.dom.client.Element;
+import com.google.gwt.dom.client.NodeList;
 import com.google.gwt.dom.client.TableCellElement;
 import com.google.gwt.dom.client.TableElement;
 import com.google.gwt.dom.client.TableRowElement;
 import com.google.gwt.dom.client.TableSectionElement;
 import com.google.gwt.user.cellview.client.DataGrid.Resources;
+import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.RootPanel;
+import com.google.gwt.user.client.ui.Widget;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Locale;
 
 /**
  * Tests for {@link DataGrid}.
@@ -89,9 +99,271 @@ public class DataGridTest extends AbstractCellTableTestBase<DataGrid<String>> {
     RootPanel.get().remove(table);
   }
 
+  /**
+   * Test that the header, body and footer tables read as one ARIA table.
+   */
+  public void testTableRoles() {
+    DataGrid<String> table = createRoleTestGrid();
+
+    assertEquals("table", table.getElement().getAttribute("role"));
+    assertEquals("presentation", table.tableHeader.getElement().getAttribute("role"));
+    assertEquals("presentation", table.tableData.getElement().getAttribute("role"));
+    assertEquals("presentation", table.tableFooter.getElement().getAttribute("role"));
+    assertEquals("rowgroup", table.getTableHeadElement().getAttribute("role"));
+    assertEquals("rowgroup", table.getTableBodyElement().getAttribute("role"));
+    assertEquals("rowgroup", table.getTableFootElement().getAttribute("role"));
+
+    TableRowElement headerRow = table.getTableHeadElement().getRows().getItem(0);
+    assertEquals("row", headerRow.getAttribute("role"));
+    for (int c = 0; c < 3; c++) {
+      assertEquals("columnheader", headerRow.getCells().getItem(c).getAttribute("role"));
+    }
+    for (int r = 0; r < 3; r++) {
+      TableRowElement row = table.getRowElement(r);
+      assertEquals("row", row.getAttribute("role"));
+      for (int c = 0; c < 3; c++) {
+        assertEquals("cell", row.getCells().getItem(c).getAttribute("role"));
+      }
+    }
+
+    RootPanel.get().remove(table);
+  }
+
+  /**
+   * Test that rows replaced by a partial redraw get roles too.
+   */
+  public void testTableRolesAfterPartialRedraw() {
+    DataGrid<String> table = createRoleTestGrid();
+
+    table.setRowData(1, Arrays.asList("B"));
+    table.getPresenter().flush();
+    TableRowElement row = table.getRowElement(1);
+    assertEquals("B", row.getCells().getItem(0).getInnerText());
+    assertEquals("row", row.getAttribute("role"));
+    assertEquals("cell", row.getCells().getItem(1).getAttribute("role"));
+
+    RootPanel.get().remove(table);
+  }
+
+  /**
+   * Test that a partial redraw only stamps the rows it inserts, so updating
+   * one row doesn't walk the whole body.
+   */
+  public void testPartialRedrawOnlyStampsNewRows() {
+    DataGrid<String> table = createRoleTestGrid();
+
+    table.getRowElement(0).removeAttribute("role");
+    table.setRowData(1, Arrays.asList("B"));
+    table.getPresenter().flush();
+    assertFalse(table.getRowElement(0).hasAttribute("role"));
+    assertEquals("row", table.getRowElement(1).getAttribute("role"));
+
+    RootPanel.get().remove(table);
+  }
+
+  /**
+   * Test that footer rows and their th cells get roles, like the header.
+   */
+  public void testTableRolesFooter() {
+    DataGrid<String> table = createAbstractHasData();
+    table.addColumn(new TextColumn<String>() {
+      @Override
+      public String getValue(String object) {
+        return object;
+      }
+    }, new TextHeader("Name"), new TextHeader("Total"));
+    RootPanel.get().add(table);
+    table.setRowData(Arrays.asList("a"));
+    table.getPresenter().flush();
+
+    TableRowElement footerRow = table.getTableFootElement().getRows().getItem(0);
+    assertEquals("row", footerRow.getAttribute("role"));
+    TableCellElement footerCell = footerRow.getCells().getItem(0);
+    assertEquals("Total", footerCell.getInnerText());
+    assertEquals("columnheader", footerCell.getAttribute("role"));
+
+    RootPanel.get().remove(table);
+  }
+
+  /**
+   * Test that an empty role attribute counts as no role.
+   */
+  public void testTableRolesTreatEmptyRoleAsAbsent() {
+    DataGrid<String> table = createRoleTestGrid();
+
+    table.setTableBuilder(new DefaultCellTableBuilder<String>(table) {
+      @Override
+      public void buildRowImpl(String rowValue, int absRowIndex) {
+        TableRowBuilder tr = startRow(rowValue);
+        tr.attribute("role", "");
+        tr.startTD().attribute("role", "").text(rowValue).endTD();
+        tr.endTR();
+      }
+    });
+    table.getPresenter().flush();
+    TableRowElement row = table.getRowElement(0);
+    assertEquals("row", row.getAttribute("role"));
+    assertEquals("cell", row.getCells().getItem(0).getAttribute("role"));
+
+    RootPanel.get().remove(table);
+  }
+
+  /**
+   * Test that a row the builder marks presentational keeps that role and its
+   * cells get none.
+   */
+  public void testTableRolesKeepExplicitRoles() {
+    DataGrid<String> table = createRoleTestGrid();
+
+    table.setTableBuilder(new DefaultCellTableBuilder<String>(table) {
+      @Override
+      public void buildRowImpl(String rowValue, int absRowIndex) {
+        super.buildRowImpl(rowValue, absRowIndex);
+        if (absRowIndex == 0) {
+          TableRowBuilder tr = startRow(rowValue);
+          tr.attribute("role", "presentation");
+          tr.startTD().colSpan(3).endTD();
+          tr.endTR();
+        }
+      }
+    });
+    table.getPresenter().flush();
+    TableRowElement layoutRow = table.getTableBodyElement().getRows().getItem(1);
+    assertEquals("presentation", layoutRow.getAttribute("role"));
+    assertFalse(layoutRow.getCells().getItem(0).hasAttribute("role"));
+    assertEquals("row", table.getTableBodyElement().getRows().getItem(2).getAttribute("role"));
+
+    RootPanel.get().remove(table);
+  }
+
+  /**
+   * Test that a sorted header carries both its role and aria-sort.
+   */
+  public void testTableRolesKeepAriaSort() {
+    DataGrid<String> table = createRoleTestGrid();
+
+    table.getColumnSortList().push(table.getColumn(2));
+    table.redrawHeaders();
+    TableCellElement th = table.getTableHeadElement().getRows().getItem(0).getCells().getItem(2);
+    assertEquals("columnheader", th.getAttribute("role"));
+    assertEquals("ascending", th.getAttribute("aria-sort"));
+
+    RootPanel.get().remove(table);
+  }
+
+  /**
+   * Test that a disabled (null) loading indicator leaves no blank row in the
+   * grid while it loads.
+   */
+  public void testNullLoadingIndicatorAddsNoRow() {
+    DataGrid<String> table = createAbstractHasData(new TextCell());
+    table.setLoadingIndicator(new Label("Loading"));
+    table.setLoadingIndicator(null);
+    RootPanel.get().add(table);
+    table.getPresenter().flush();
+
+    // While loading, the only td in the grid is the indicator container's.
+    NodeList<Element> tds = table.getElement().getElementsByTagName("td");
+    assertEquals(1, tds.getLength());
+    assertFalse(tds.getItem(0).hasAttribute("role"));
+    assertFalse(tds.getItem(0).getParentElement().hasAttribute("role"));
+
+    RootPanel.get().remove(table);
+  }
+
+  /**
+   * Test that a th in the body is a row header.
+   */
+  public void testTableRolesBodyThIsRowHeader() {
+    DataGrid<String> table = createRoleTestGrid();
+
+    table.setTableBuilder(new DefaultCellTableBuilder<String>(table) {
+      @Override
+      public void buildRowImpl(String rowValue, int absRowIndex) {
+        TableRowBuilder tr = startRow(rowValue);
+        tr.startTH().text(rowValue).endTH();
+        tr.startTD().text(rowValue).endTD();
+        tr.endTR();
+      }
+    });
+    table.getPresenter().flush();
+    TableRowElement row = table.getRowElement(0);
+    assertEquals("rowheader", row.getCells().getItem(0).getAttribute("role"));
+    assertEquals("cell", row.getCells().getItem(1).getAttribute("role"));
+
+    RootPanel.get().remove(table);
+  }
+
+  /**
+   * Test that the loading and empty-table messages, which replace the body
+   * table, read as a row of the grid rather than a table of their own.
+   */
+  public void testLoadingAndEmptyMessagesArePresentational() {
+    DataGrid<String> table = createAbstractHasData(new TextCell());
+    Label loading = new Label("Loading");
+    Label empty = new Label("Empty");
+    table.setLoadingIndicator(loading);
+    table.setEmptyTableWidget(empty);
+
+    // A grid with no data yet is loading.
+    RootPanel.get().add(table);
+    table.getPresenter().flush();
+    assertTrue(loading.isAttached());
+    assertMessageRoles(table, loading);
+
+    table.setRowData(new ArrayList<String>());
+    table.getPresenter().flush();
+    assertTrue(empty.isAttached());
+    assertMessageRoles(table, empty);
+
+    RootPanel.get().remove(table);
+  }
+
   @Override
   protected DataGrid<String> createAbstractHasData() {
     return new DataGrid<String>();
+  }
+
+  @Override
+  protected String getHeaderCellRole() {
+    return "columnheader";
+  }
+
+  /**
+   * Assert that a message widget shown in the grid sits in a cell of a row of
+   * a presentational table inside the grid.
+   */
+  private static void assertMessageRoles(DataGrid<String> table, Widget message) {
+    Element td = message.getElement().getParentElement();
+    Element tr = td.getParentElement();
+    Element tbody = tr.getParentElement();
+    Element tableElem = tbody.getParentElement();
+    assertEquals("td", td.getTagName().toLowerCase(Locale.ROOT));
+    assertTrue(table.getElement().isOrHasChild(tableElem));
+    assertEquals("cell", td.getAttribute("role"));
+    assertEquals("row", tr.getAttribute("role"));
+    assertEquals("rowgroup", tbody.getAttribute("role"));
+    assertEquals("presentation", tableElem.getAttribute("role"));
+  }
+
+  /**
+   * Create an attached grid with three columns, the last one sortable, and
+   * three rows.
+   */
+  private DataGrid<String> createRoleTestGrid() {
+    DataGrid<String> table = createAbstractHasData(new TextCell());
+    TextColumn<String> column = new TextColumn<String>() {
+      @Override
+      public String getValue(String object) {
+        return object;
+      }
+    };
+    column.setSortable(true);
+    table.addColumn(column, new TextHeader("Name"));
+    RootPanel.get().add(table);
+    table.setRowData(Arrays.asList("a", "b", "c"));
+    table.getPresenter().flush();
+    return table;
   }
 
   @Override

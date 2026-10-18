@@ -18,12 +18,15 @@ package com.google.gwt.user.cellview.client;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
+import com.google.gwt.dom.client.NodeList;
 import com.google.gwt.dom.client.Style.Display;
 import com.google.gwt.dom.client.Style.Overflow;
 import com.google.gwt.dom.client.Style.TableLayout;
 import com.google.gwt.dom.client.Style.Unit;
+import com.google.gwt.dom.client.TableCellElement;
 import com.google.gwt.dom.client.TableColElement;
 import com.google.gwt.dom.client.TableElement;
+import com.google.gwt.dom.client.TableRowElement;
 import com.google.gwt.dom.client.TableSectionElement;
 import com.google.gwt.event.dom.client.ScrollEvent;
 import com.google.gwt.event.dom.client.ScrollHandler;
@@ -504,6 +507,58 @@ public class DataGrid<T> extends AbstractCellTable<T> implements RequiresResize 
     return DEFAULT_RESOURCES;
   }
 
+  /**
+   * Give the rows and cells of a rendered section explicit ARIA roles, which
+   * they lose to the presentation role on their table. Rows and cells that
+   * already have a role keep it, and a row with a role other than row (such
+   * as a layout row marked presentation) is left alone, cells included. An
+   * empty role counts as none.
+   */
+  private static void applyTableRoles(TableSectionElement section) {
+    // Tag, not identity: a partial render passes a temporary tbody.
+    String thRole = "tbody".equalsIgnoreCase(section.getTagName()) ? "rowheader" : "columnheader";
+    NodeList<TableRowElement> rows = section.getRows();
+    for (int r = 0; r < rows.getLength(); r++) {
+      TableRowElement row = rows.getItem(r);
+      String rowRole = row.getAttribute("role");
+      if (rowRole.isEmpty()) {
+        row.setAttribute("role", "row");
+      } else if (!"row".equals(rowRole)) {
+        continue;
+      }
+      NodeList<TableCellElement> cells = row.getCells();
+      for (int c = 0; c < cells.getLength(); c++) {
+        TableCellElement cell = cells.getItem(c);
+        if (cell.getAttribute("role").isEmpty()) {
+          boolean isTh = "th".equalsIgnoreCase(cell.getTagName());
+          cell.setAttribute("role", isTh ? thRole : "cell");
+        }
+      }
+    }
+  }
+
+  /**
+   * Show a widget in a message container (loading or empty table), whose
+   * single cell reads as a row of the grid. A null widget disables the
+   * message, so its empty cell must not read as a blank row.
+   */
+  private static void setMessageWidget(FlexTable container, Widget widget) {
+    container.setWidget(0, 0, widget);
+    TableElement table = container.getElement().cast();
+    Element[] parts = {
+        table.getTBodies().getItem(0),
+        container.getRowFormatter().getElement(0),
+        container.getCellFormatter().getElement(0, 0)};
+    String[] roles = {"rowgroup", "row", "cell"};
+    for (int i = 0; i < parts.length; i++) {
+      if (widget == null) {
+        parts[i].removeAttribute("role");
+      } else {
+        parts[i].setAttribute("role", roles[i]);
+      }
+    }
+  }
+
   final TableWidget tableData;
   final TableWidget tableFooter;
   final TableWidget tableHeader;
@@ -649,6 +704,20 @@ public class DataGrid<T> extends AbstractCellTable<T> implements RequiresResize 
     loadingIndicatorContainer = new FlexTable();
     loadingIndicatorContainer.getElement().setAttribute("align", "center");
 
+    /*
+     * The header, body and footer are separate tables so the header can stay
+     * fixed while the body scrolls. Presentation roles on those tables, plus
+     * explicit row and cell roles (see onSectionRendered), let assistive
+     * technology read them as one table.
+     */
+    getElement().setAttribute("role", "table");
+    for (TableWidget part : new TableWidget[] {tableHeader, tableData, tableFooter}) {
+      part.tableElem.setAttribute("role", "presentation");
+      part.section.setAttribute("role", "rowgroup");
+    }
+    emptyTableWidgetContainer.getElement().setAttribute("role", "presentation");
+    loadingIndicatorContainer.getElement().setAttribute("role", "presentation");
+
     // Set the loading indicator.
     setLoadingIndicator(loadingIndicator); // Can be null.
 
@@ -724,13 +793,13 @@ public class DataGrid<T> extends AbstractCellTable<T> implements RequiresResize 
 
   @Override
   public void setEmptyTableWidget(Widget widget) {
-    emptyTableWidgetContainer.setWidget(0, 0, widget);
+    setMessageWidget(emptyTableWidgetContainer, widget);
     super.setEmptyTableWidget(widget);
   }
 
   @Override
   public void setLoadingIndicator(Widget widget) {
-    loadingIndicatorContainer.setWidget(0, 0, widget);
+    setMessageWidget(loadingIndicatorContainer, widget);
     super.setLoadingIndicator(widget);
   }
 
@@ -856,6 +925,11 @@ public class DataGrid<T> extends AbstractCellTable<T> implements RequiresResize 
 
     // Fire an event.
     super.onLoadingStateChanged(state);
+  }
+
+  @Override
+  protected void onSectionRendered(TableSectionElement section) {
+    applyTableRoles(section);
   }
 
   @Override

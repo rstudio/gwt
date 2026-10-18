@@ -1224,7 +1224,7 @@ public abstract class AbstractCellTableTestBase<T extends AbstractCellTable<Stri
 
     // The sortable th keeps its columnheader role; the button is inside it.
     TableCellElement sortableTh = getHeaderElement(table, 0);
-    assertFalse(sortableTh.hasAttribute("role"));
+    assertHeaderCellRole(sortableTh);
     assertFalse(sortableTh.hasAttribute("aria-sort"));
     Element sortButton = sortableTh.getFirstChildElement();
     assertEquals("button", sortButton.getAttribute("role"));
@@ -1233,7 +1233,7 @@ public abstract class AbstractCellTableTestBase<T extends AbstractCellTable<Stri
 
     // A column that isn't sortable gets no button.
     TableCellElement plainTh = getHeaderElement(table, 1);
-    assertFalse(plainTh.hasAttribute("role"));
+    assertHeaderCellRole(plainTh);
     assertFalse(plainTh.hasAttribute("aria-sort"));
     assertNull(plainTh.getFirstChildElement());
     assertEquals("Column 1", plainTh.getInnerText());
@@ -1372,6 +1372,23 @@ public abstract class AbstractCellTableTestBase<T extends AbstractCellTable<Stri
       }
     }, "Column 1");
     return table;
+  }
+
+  /**
+   * Get the role attribute a header th should carry: null for none (an
+   * implicit columnheader), or the explicit role the table stamps on it.
+   */
+  protected String getHeaderCellRole() {
+    return null;
+  }
+
+  private void assertHeaderCellRole(TableCellElement th) {
+    String role = getHeaderCellRole();
+    if (role == null) {
+      assertFalse(th.hasAttribute("role"));
+    } else {
+      assertEquals(role, th.getAttribute("role"));
+    }
   }
 
   /**

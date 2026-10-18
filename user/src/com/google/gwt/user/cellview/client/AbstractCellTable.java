@@ -523,6 +523,7 @@ public abstract class AbstractCellTable<T> extends AbstractHasData<T> {
 
       // Render the html.
       replaceAllRowsImpl(table, section, html);
+      table.onSectionRendered(section);
 
       /*
        * Reattach the section. If next section is null, the section will be
@@ -585,6 +586,7 @@ public abstract class AbstractCellTable<T> extends AbstractHasData<T> {
 
       // Add new child elements.
       TableSectionElement newSection = convertToSectionElement(table, section.getTagName(), html);
+      table.onSectionRendered(newSection);
       Element newChild = newSection.getFirstChildElement();
       while (newChild != null) {
         Element next = newChild.getNextSiblingElement();
@@ -1705,6 +1707,18 @@ public abstract class AbstractCellTable<T> extends AbstractHasData<T> {
    * @param isVisible true to show, false to hide
    */
   protected abstract void doSetHeaderVisible(boolean isFooter, boolean isVisible);
+
+  /**
+   * Called after rows of a head, body or foot section are rendered, before
+   * they enter the document, so subclasses can post-process them. The default
+   * does nothing.
+   *
+   * @param section after a full render, the table's own section, detached;
+   *          after a partial render of the body, a detached section of the
+   *          same tag holding only the new rows
+   */
+  protected void onSectionRendered(TableSectionElement section) {
+  }
 
   @Override
   protected Element getChildContainer() {
