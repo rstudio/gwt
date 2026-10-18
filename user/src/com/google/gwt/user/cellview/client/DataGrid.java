@@ -511,26 +511,28 @@ public class DataGrid<T> extends AbstractCellTable<T> implements RequiresResize 
    * Give the rows and cells of a rendered section explicit ARIA roles, which
    * they lose to the presentation role on their table. Rows and cells that
    * already have a role keep it, and a row with a role other than row (such
-   * as a layout row marked presentation) is left alone, cells included.
+   * as a layout row marked presentation) is left alone, cells included. An
+   * empty role counts as none.
    */
   private static void applyTableRoles(TableSectionElement section) {
-    boolean isBody = "tbody".equalsIgnoreCase(section.getTagName());
+    // Tag, not identity: a partial render passes a temporary tbody.
+    String thRole = "tbody".equalsIgnoreCase(section.getTagName()) ? "rowheader" : "columnheader";
     NodeList<TableRowElement> rows = section.getRows();
     for (int r = 0; r < rows.getLength(); r++) {
       TableRowElement row = rows.getItem(r);
-      if (!row.hasAttribute("role")) {
+      String rowRole = row.getAttribute("role");
+      if (rowRole.isEmpty()) {
         row.setAttribute("role", "row");
-      } else if (!"row".equals(row.getAttribute("role"))) {
+      } else if (!"row".equals(rowRole)) {
         continue;
       }
       NodeList<TableCellElement> cells = row.getCells();
       for (int c = 0; c < cells.getLength(); c++) {
         TableCellElement cell = cells.getItem(c);
-        if (cell.hasAttribute("role")) {
-          continue;
+        if (cell.getAttribute("role").isEmpty()) {
+          boolean isTh = "th".equalsIgnoreCase(cell.getTagName());
+          cell.setAttribute("role", isTh ? thRole : "cell");
         }
-        boolean isTh = "th".equalsIgnoreCase(cell.getTagName());
-        cell.setAttribute("role", isTh ? (isBody ? "rowheader" : "columnheader") : "cell");
       }
     }
   }

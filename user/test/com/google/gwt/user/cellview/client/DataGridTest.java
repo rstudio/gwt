@@ -160,6 +160,29 @@ public class DataGridTest extends AbstractCellTableTestBase<DataGrid<String>> {
   }
 
   /**
+   * Test that an empty role attribute counts as no role.
+   */
+  public void testTableRolesTreatEmptyRoleAsAbsent() {
+    DataGrid<String> table = createRoleTestGrid();
+
+    table.setTableBuilder(new DefaultCellTableBuilder<String>(table) {
+      @Override
+      public void buildRowImpl(String rowValue, int absRowIndex) {
+        TableRowBuilder tr = startRow(rowValue);
+        tr.attribute("role", "");
+        tr.startTD().attribute("role", "").text(rowValue).endTD();
+        tr.endTR();
+      }
+    });
+    table.getPresenter().flush();
+    TableRowElement row = table.getRowElement(0);
+    assertEquals("row", row.getAttribute("role"));
+    assertEquals("cell", row.getCells().getItem(0).getAttribute("role"));
+
+    RootPanel.get().remove(table);
+  }
+
+  /**
    * Test that a row the builder marks presentational keeps that role and its
    * cells get none.
    */
