@@ -537,6 +537,18 @@ public class DataGrid<T> extends AbstractCellTable<T> implements RequiresResize 
     }
   }
 
+  /**
+   * Show a widget in a message container (loading or empty table), whose
+   * single cell reads as a row of the grid.
+   */
+  private static void setMessageWidget(FlexTable container, Widget widget) {
+    container.setWidget(0, 0, widget);
+    TableElement table = container.getElement().cast();
+    table.getTBodies().getItem(0).setAttribute("role", "rowgroup");
+    container.getRowFormatter().getElement(0).setAttribute("role", "row");
+    container.getCellFormatter().getElement(0, 0).setAttribute("role", "cell");
+  }
+
   final TableWidget tableData;
   final TableWidget tableFooter;
   final TableWidget tableHeader;
@@ -771,13 +783,13 @@ public class DataGrid<T> extends AbstractCellTable<T> implements RequiresResize 
 
   @Override
   public void setEmptyTableWidget(Widget widget) {
-    emptyTableWidgetContainer.setWidget(0, 0, widget);
+    setMessageWidget(emptyTableWidgetContainer, widget);
     super.setEmptyTableWidget(widget);
   }
 
   @Override
   public void setLoadingIndicator(Widget widget) {
-    loadingIndicatorContainer.setWidget(0, 0, widget);
+    setMessageWidget(loadingIndicatorContainer, widget);
     super.setLoadingIndicator(widget);
   }
 

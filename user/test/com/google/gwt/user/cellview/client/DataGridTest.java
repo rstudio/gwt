@@ -30,6 +30,7 @@ import com.google.gwt.user.client.ui.Widget;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Locale;
 
 /**
  * Tests for {@link DataGrid}.
@@ -250,7 +251,7 @@ public class DataGridTest extends AbstractCellTableTestBase<DataGrid<String>> {
 
   /**
    * Test that the loading and empty-table messages, which replace the body
-   * table, are not shown inside a table of their own.
+   * table, read as a row of the grid rather than a table of their own.
    */
   public void testLoadingAndEmptyMessagesArePresentational() {
     DataGrid<String> table = createAbstractHasData(new TextCell());
@@ -263,12 +264,12 @@ public class DataGridTest extends AbstractCellTableTestBase<DataGrid<String>> {
     RootPanel.get().add(table);
     table.getPresenter().flush();
     assertTrue(loading.isAttached());
-    assertEquals("presentation", getEnclosingTable(table, loading).getAttribute("role"));
+    assertMessageRoles(table, loading);
 
     table.setRowData(new ArrayList<String>());
     table.getPresenter().flush();
     assertTrue(empty.isAttached());
-    assertEquals("presentation", getEnclosingTable(table, empty).getAttribute("role"));
+    assertMessageRoles(table, empty);
 
     RootPanel.get().remove(table);
   }
@@ -284,15 +285,20 @@ public class DataGridTest extends AbstractCellTableTestBase<DataGrid<String>> {
   }
 
   /**
-   * Get the nearest table element around a widget shown inside the grid.
+   * Assert that a message widget shown in the grid sits in a cell of a row of
+   * a presentational table inside the grid.
    */
-  private static Element getEnclosingTable(DataGrid<String> table, Widget widget) {
-    Element elem = widget.getElement();
-    while (!"table".equalsIgnoreCase(elem.getTagName())) {
-      elem = elem.getParentElement();
-    }
-    assertTrue(table.getElement().isOrHasChild(elem));
-    return elem;
+  private static void assertMessageRoles(DataGrid<String> table, Widget message) {
+    Element td = message.getElement().getParentElement();
+    Element tr = td.getParentElement();
+    Element tbody = tr.getParentElement();
+    Element tableElem = tbody.getParentElement();
+    assertEquals("td", td.getTagName().toLowerCase(Locale.ROOT));
+    assertTrue(table.getElement().isOrHasChild(tableElem));
+    assertEquals("cell", td.getAttribute("role"));
+    assertEquals("row", tr.getAttribute("role"));
+    assertEquals("rowgroup", tbody.getAttribute("role"));
+    assertEquals("presentation", tableElem.getAttribute("role"));
   }
 
   /**
