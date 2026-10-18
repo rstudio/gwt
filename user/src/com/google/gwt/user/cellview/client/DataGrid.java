@@ -538,9 +538,9 @@ public class DataGrid<T> extends AbstractCellTable<T> implements RequiresResize 
   final TableWidget tableData;
   final TableWidget tableFooter;
   final TableWidget tableHeader;
-  final FlexTable emptyTableWidgetContainer;
+  private final FlexTable emptyTableWidgetContainer;
   private final HeaderPanel headerPanel;
-  final FlexTable loadingIndicatorContainer;
+  private final FlexTable loadingIndicatorContainer;
   private final Style style;
   private final Element tableDataContainer;
   private final ScrollPanel tableDataScroller;

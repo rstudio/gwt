@@ -18,6 +18,7 @@ package com.google.gwt.user.cellview.client;
 import com.google.gwt.cell.client.TextCell;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.builder.shared.TableRowBuilder;
+import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.TableCellElement;
 import com.google.gwt.dom.client.TableElement;
 import com.google.gwt.dom.client.TableRowElement;
@@ -25,7 +26,9 @@ import com.google.gwt.dom.client.TableSectionElement;
 import com.google.gwt.user.cellview.client.DataGrid.Resources;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.RootPanel;
+import com.google.gwt.user.client.ui.Widget;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 
 /**
@@ -184,16 +187,51 @@ public class DataGridTest extends AbstractCellTableTestBase<DataGrid<String>> {
   }
 
   /**
-   * Test that the empty-table and loading containers do not read as tables.
+   * Test that a th in the body is a row header.
    */
-  public void testEmptyAndLoadingContainersArePresentational() {
-    DataGrid<String> table = createAbstractHasData();
-    table.setEmptyTableWidget(new Label("Empty"));
-    table.setLoadingIndicator(new Label("Loading"));
-    assertEquals("presentation",
-        table.emptyTableWidgetContainer.getElement().getAttribute("role"));
-    assertEquals("presentation",
-        table.loadingIndicatorContainer.getElement().getAttribute("role"));
+  public void testTableRolesBodyThIsRowHeader() {
+    DataGrid<String> table = createRoleTestGrid();
+
+    table.setTableBuilder(new DefaultCellTableBuilder<String>(table) {
+      @Override
+      public void buildRowImpl(String rowValue, int absRowIndex) {
+        TableRowBuilder tr = startRow(rowValue);
+        tr.startTH().text(rowValue).endTH();
+        tr.startTD().text(rowValue).endTD();
+        tr.endTR();
+      }
+    });
+    table.getPresenter().flush();
+    TableRowElement row = table.getRowElement(0);
+    assertEquals("rowheader", row.getCells().getItem(0).getAttribute("role"));
+    assertEquals("cell", row.getCells().getItem(1).getAttribute("role"));
+
+    RootPanel.get().remove(table);
+  }
+
+  /**
+   * Test that the loading and empty-table messages, which replace the body
+   * table, are not shown inside a table of their own.
+   */
+  public void testLoadingAndEmptyMessagesArePresentational() {
+    DataGrid<String> table = createAbstractHasData(new TextCell());
+    Label loading = new Label("Loading");
+    Label empty = new Label("Empty");
+    table.setLoadingIndicator(loading);
+    table.setEmptyTableWidget(empty);
+
+    // A grid with no data yet is loading.
+    RootPanel.get().add(table);
+    table.getPresenter().flush();
+    assertTrue(loading.isAttached());
+    assertEquals("presentation", getEnclosingTable(table, loading).getAttribute("role"));
+
+    table.setRowData(new ArrayList<String>());
+    table.getPresenter().flush();
+    assertTrue(empty.isAttached());
+    assertEquals("presentation", getEnclosingTable(table, empty).getAttribute("role"));
+
+    RootPanel.get().remove(table);
   }
 
   @Override
@@ -204,6 +242,18 @@ public class DataGridTest extends AbstractCellTableTestBase<DataGrid<String>> {
   @Override
   protected String getHeaderCellRole() {
     return "columnheader";
+  }
+
+  /**
+   * Get the nearest table element around a widget shown inside the grid.
+   */
+  private static Element getEnclosingTable(DataGrid<String> table, Widget widget) {
+    Element elem = widget.getElement();
+    while (!"table".equalsIgnoreCase(elem.getTagName())) {
+      elem = elem.getParentElement();
+    }
+    assertTrue(table.getElement().isOrHasChild(elem));
+    return elem;
   }
 
   /**
