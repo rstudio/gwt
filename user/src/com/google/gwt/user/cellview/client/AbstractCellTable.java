@@ -529,6 +529,7 @@ public abstract class AbstractCellTable<T> extends AbstractHasData<T> {
        * appended instead.
        */
       reattachSectionElement(parent, section, nextSection);
+      table.onSectionRendered(section);
 
       // Detach the event listener.
       if (!table.isAttached()) {
@@ -597,6 +598,7 @@ public abstract class AbstractCellTable<T> extends AbstractHasData<T> {
        * appended instead.
        */
       reattachSectionElement(parent, section, nextSection);
+      table.onSectionRendered(section);
 
       // Detach the event listener.
       if (!table.isAttached()) {
@@ -1705,6 +1707,15 @@ public abstract class AbstractCellTable<T> extends AbstractHasData<T> {
    * @param isVisible true to show, false to hide
    */
   protected abstract void doSetHeaderVisible(boolean isFooter, boolean isVisible);
+
+  /**
+   * Called after the rows of a head, body or foot section are replaced, so
+   * subclasses can post-process the rendered rows. The default does nothing.
+   *
+   * @param section the section whose rows were just rendered
+   */
+  protected void onSectionRendered(TableSectionElement section) {
+  }
 
   @Override
   protected Element getChildContainer() {
