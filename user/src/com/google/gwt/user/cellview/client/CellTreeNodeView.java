@@ -1170,6 +1170,11 @@ class CellTreeNodeView<T> extends UIObject {
   Element ensureChildContainer() {
     if (childContainer == null) {
       childContainer = Document.get().createDivElement();
+      // Nested items need a group between them and their parent item; the root's
+      // children are owned by the tree element itself.
+      if (!isRootNode()) {
+        Roles.getGroupRole().set(childContainer);
+      }
       ensureContentContainer().insertFirst(childContainer);
     }
     return childContainer;

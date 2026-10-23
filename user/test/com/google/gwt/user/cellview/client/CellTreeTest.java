@@ -17,6 +17,8 @@ package com.google.gwt.user.cellview.client;
 
 import com.google.gwt.cell.client.AbstractCell;
 import com.google.gwt.cell.client.TextCell;
+import com.google.gwt.dom.client.Document;
+import com.google.gwt.dom.client.Element;
 import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.safehtml.shared.SafeHtmlBuilder;
 import com.google.gwt.user.client.ui.RootPanel;
@@ -265,6 +267,53 @@ public class CellTreeTest extends AbstractCellTreeTestBase {
     CellTreeNodeView<?> cViewChildLast = cView.getChildNode(cView.getChildCount() - 1);
     assertEquals("5", cViewChildLast.getElement().getAttribute("aria-posinset"));
     assertEquals("5", cViewChildLast.getElement().getAttribute("aria-setsize"));
+  }
+
+  public void testChildContainerRoles() {
+    CellTree cellTree = (CellTree) tree;
+    TreeNode node = cellTree.getRootTreeNode();
+    while (!node.isChildLeaf(0)) {
+      node = node.setChildOpen(0, true);
+    }
+
+    // Top-level items are owned by the tree itself.
+    CellTreeNodeView<?> view = cellTree.rootNode.getChildNode(0);
+    assertEquals(cellTree.getElement(), getClosestRoleAncestor(view.getElement()));
+
+    // Nested items, expandable or leaf, sit in a group owned by their parent item.
+    while (view.getChildCount() > 0) {
+      view = view.getChildNode(0);
+      Element group = getClosestRoleAncestor(view.getElement());
+      assertEquals("group", group.getAttribute("role"));
+      assertEquals(view.getParentNode().getElement(), getClosestRoleAncestor(group));
+    }
+    assertTrue(view.isLeaf());
+  }
+
+  public void testExpandImagesHiddenFromAssistiveTech() {
+    CellTree cellTree = (CellTree) tree;
+    TreeNode rootNode = cellTree.getRootTreeNode();
+    // Reading the child count flushes the pending render of the opened node's children.
+    assertTrue(rootNode.setChildOpen(0, true).getChildCount() > 0);
+    CellTreeNodeView<?> aView = cellTree.rootNode.getChildNode(0);
+    assertEquals("true", aView.getImageElement().getAttribute("aria-hidden"));
+    CellTreeNodeView<?> aViewChild = aView.getChildNode(0);
+    assertEquals("true", aViewChild.getImageElement().getAttribute("aria-hidden"));
+
+    rootNode.setChildOpen(0, false);
+    assertEquals("true", aView.getImageElement().getAttribute("aria-hidden"));
+
+    Element loading = Document.get().createDivElement();
+    loading.setInnerSafeHtml(cellTree.getLoadingImageHtml());
+    assertEquals("true", loading.getFirstChildElement().getAttribute("aria-hidden"));
+  }
+
+  private static Element getClosestRoleAncestor(Element elem) {
+    Element parent = elem.getParentElement();
+    while (parent != null && parent.getAttribute("role").isEmpty()) {
+      parent = parent.getParentElement();
+    }
+    return parent;
   }
 
   public void testExplicitKeyboardSelection() {

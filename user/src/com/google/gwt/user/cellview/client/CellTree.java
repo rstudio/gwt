@@ -455,7 +455,9 @@ public class CellTree extends AbstractCellTree implements HasAnimation,
   }
 
   interface Template extends SafeHtmlTemplates {
-    @Template("<div class=\"{0}\" style=\"{1}position:absolute;\">{2}</div>")
+    // The open/closed/loading image is decorative: the item's aria-expanded conveys it.
+    @Template("<div class=\"{0}\" style=\"{1}position:absolute;\" aria-hidden=\"true\">"
+        + "{2}</div>")
     SafeHtml imageWrapper(String classes, SafeStyles cssLayout, SafeHtml image);
   }
 
