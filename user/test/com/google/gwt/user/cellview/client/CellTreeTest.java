@@ -298,6 +298,8 @@ public class CellTreeTest extends AbstractCellTreeTestBase {
     CellTreeNodeView<?> aView = cellTree.rootNode.getChildNode(0);
     assertEquals("true", aView.getImageElement().getAttribute("aria-hidden"));
     CellTreeNodeView<?> aViewChild = aView.getChildNode(0);
+    // A leaf renders a placeholder div instead of the closed image.
+    assertFalse(aViewChild.isLeaf());
     assertEquals("true", aViewChild.getImageElement().getAttribute("aria-hidden"));
 
     rootNode.setChildOpen(0, false);
