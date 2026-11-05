@@ -728,6 +728,28 @@ public class MenuBarTest extends WidgetTestBase {
     bar.getElement().dispatchEvent(event);
   }
 
+  public void testTabFromSubMenuFocusesRootMenu() {
+    MenuBar l2 = new MenuBar(true);
+    l2.addItem("l2", BLANK_COMMAND);
+    MenuBar l1 = new MenuBar(true);
+    MenuItem item1 = l1.addItem("l1", l2);
+    MenuBar l0 = new MenuBar();
+    MenuItem item0 = l0.addItem("l0", l1);
+    RootPanel.get().add(l0);
+
+    l0.focus();
+    l0.selectItem(item0);
+    pressKey(l0, KeyCodes.KEY_DOWN);
+    l1.selectItem(item1);
+    pressKey(l1, KeyCodes.KEY_RIGHT);
+    assertFocused(l2.getElement());
+
+    pressKey(l2, KeyCodes.KEY_TAB);
+    assertFocused(l0.getElement());
+    assertNull(l0.getPopup());
+    assertNull(l0.getSelectedItem());
+  }
+
   public void testPresentationRole() {
     MenuBar menu = new MenuBar();
     assertNotNull(menu.getElement());

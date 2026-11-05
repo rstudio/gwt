@@ -798,6 +798,10 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
             eatEvent(event);
             break;
           case KeyCodes.KEY_TAB:
+            // Submenu popups are appended to the end of the body. Focus the
+            // root menu so the browser's default Tab action moves to the
+            // element before or after it, not after the popup.
+            getRootMenu().focus();
             closeAllParentsAndChildren();
             break;
           case KeyCodes.KEY_HOME:
@@ -1244,6 +1248,14 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
       }
     }
     return null;
+  }
+
+  private MenuBar getRootMenu() {
+    MenuBar root = this;
+    while (root.parentMenu != null) {
+      root = root.parentMenu;
+    }
+    return root;
   }
 
   private Element getItemContainerElement() {
