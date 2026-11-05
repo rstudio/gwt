@@ -757,9 +757,11 @@ public class MenuBarTest extends WidgetTestBase {
     MenuItem parent = bar.addItem("parent", sub);
     RootPanel.get().add(bar);
 
+    assertEquals("false", parent.getElement().getAttribute("aria-expanded"));
     bar.focus();
     bar.selectItem(parent);
     pressKey(bar, KeyCodes.KEY_DOWN);
+    assertEquals("true", parent.getElement().getAttribute("aria-expanded"));
     String subMenuId = sub.getElement().getId();
     assertFalse(subMenuId.isEmpty());
     assertEquals(subMenuId, bar.getElement().getAttribute("aria-owns"));
@@ -769,6 +771,7 @@ public class MenuBarTest extends WidgetTestBase {
     pressKey(sub, KeyCodes.KEY_ESCAPE);
     assertNull(bar.getPopup());
     assertFalse(bar.getElement().hasAttribute("aria-owns"));
+    assertEquals("false", parent.getElement().getAttribute("aria-expanded"));
   }
 
   public void testPresentationRole() {

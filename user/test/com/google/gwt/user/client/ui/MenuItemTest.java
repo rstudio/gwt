@@ -167,10 +167,12 @@ public class MenuItemTest extends GWTTestCase {
     assertEquals(-1, FocusPanel.impl.getTabIndex(submenu.getElement()));
 
     assertEquals("true", Roles.getMenuitemRole().getAriaHaspopupProperty(item.getElement()));
+    assertEquals("false", item.getElement().getAttribute("aria-expanded"));
 
     item.setSubMenu(null);
     assertNull(item.getSubMenu());
     assertEquals("false", Roles.getMenuitemRole().getAriaHaspopupProperty(item.getElement()));
+    assertFalse(item.getElement().hasAttribute("aria-expanded"));
 
     item.setSubMenu(submenu);
     assertEquals(submenu, item.getSubMenu());
