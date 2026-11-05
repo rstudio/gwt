@@ -1382,17 +1382,26 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
   }
 
   /**
+   * Whether keyboard navigation can open the item's submenu: an empty one, e.g.
+   * one filled lazily, would open as a blank popup.
+   */
+  private static boolean canOpenSubMenu(MenuItem item) {
+    return item.isEnabled() && item.getSubMenu() != null
+        && !item.getSubMenu().getItems().isEmpty();
+  }
+
+  /**
    * Opens the selected item's submenu if it isn't already open, and moves
    * focus to the submenu's first item. Hovering selects items without moving
    * focus, so the submenu may already be open with a different item selected.
    *
-   * @return false if the selected item has no enabled, non-empty submenu
+   * @return false if the selected item can't open a submenu
    */
   private boolean focusSubMenu() {
-    MenuBar subMenu = selectedItem.getSubMenu();
-    if (subMenu == null || subMenu.getItems().isEmpty() || !selectedItem.isEnabled()) {
+    if (!canOpenSubMenu(selectedItem)) {
       return false;
     }
+    MenuBar subMenu = selectedItem.getSubMenu();
     if (shownChildMenu != subMenu) {
       doItemAction(selectedItem, false, true);
     }
@@ -1624,7 +1633,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
     if (shownChildMenu == null) {
       return;
     }
-    if (selectedItem.isEnabled() && selectedItem.getSubMenu() != null) {
+    if (canOpenSubMenu(selectedItem)) {
       doItemAction(selectedItem, false, true);
     } else {
       hideChildMenu(false);
