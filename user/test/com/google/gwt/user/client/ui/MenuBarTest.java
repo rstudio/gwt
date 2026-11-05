@@ -795,6 +795,29 @@ public class MenuBarTest extends WidgetTestBase {
       }
     });
   }
+  public void testUpArrowAfterHoverMovesWithinMenu() {
+    MenuBar flyout = new MenuBar(true);
+    flyout.addItem("recent", BLANK_COMMAND);
+    MenuBar file = new MenuBar(true);
+    file.setFocusOnHoverEnabled(false);
+    MenuItem first = file.addItem("first", BLANK_COMMAND);
+    MenuItem parent = file.addItem("parent", flyout);
+    MenuBar bar = new MenuBar();
+    MenuItem fileItem = bar.addItem("file", file);
+    RootPanel.get().add(bar);
+
+    bar.selectItem(fileItem);
+    pressKey(bar, KeyCodes.KEY_DOWN);
+    // Hovering a submenu parent opens its flyout but leaves focus in the menu.
+    file.itemOver(parent, true);
+    assertTrue(flyout.isAttached());
+
+    pressKey(file, KeyCodes.KEY_UP);
+    assertTrue(bar.getPopup().isShowing());
+    assertEquals(first, file.getSelectedItem());
+    assertFalse(flyout.isAttached());
+  }
+
   public void testEnterOnDisabledSubMenuParentDoesNothing() {
     MenuBar sub = new MenuBar(true);
     sub.addItem("first", BLANK_COMMAND);

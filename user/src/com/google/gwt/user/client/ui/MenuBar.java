@@ -743,7 +743,9 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
       return;
     }
 
-    if ((shownChildMenu == null) && vertical) {
+    // A submenu opened by hovering leaves focus here, so Up still moves within
+    // this menu; selecting another item closes that submenu.
+    if (vertical) {
       selectPrevItem();
     } else if ((parentMenu != null) && parentMenu.vertical) {
       parentMenu.selectPrevItem();
