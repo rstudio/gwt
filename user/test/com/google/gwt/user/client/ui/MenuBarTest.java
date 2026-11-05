@@ -851,6 +851,25 @@ public class MenuBarTest extends WidgetTestBase {
     assertFalse(flyout.isAttached());
   }
 
+  public void testEnterAndSpaceDoNotOpenEmptySubMenu() {
+    for (int key : new int[] {KeyCodes.KEY_ENTER, KeyCodes.KEY_SPACE}) {
+      for (boolean vertical : new boolean[] {false, true}) {
+        MenuBar empty = new MenuBar(true);
+        MenuBar bar = new MenuBar(vertical);
+        MenuItem parent = bar.addItem("parent", empty);
+        RootPanel.get().add(bar);
+
+        bar.selectItem(parent);
+        pressKey(bar, key);
+        assertNull(bar.getPopup());
+        assertFalse(empty.isAttached());
+        assertEquals("false", parent.getElement().getAttribute("aria-expanded"));
+
+        RootPanel.get().remove(bar);
+      }
+    }
+  }
+
   public void testEnterOnDisabledSubMenuParentDoesNothing() {
     MenuBar sub = new MenuBar(true);
     sub.addItem("first", BLANK_COMMAND);

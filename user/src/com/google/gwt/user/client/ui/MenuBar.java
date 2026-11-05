@@ -847,8 +847,10 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
           case KeyCodes.KEY_SPACE:
             if (!selectFirstItemIfNoneSelected()) {
               // An item's command takes precedence over its submenu, as it
-              // does for clicks.
-              if (selectedItem.getScheduledCommand() != null || !focusSubMenu()) {
+              // does for clicks. A submenu focusSubMenu() can't open, e.g. an
+              // empty one, is left closed rather than opened blank.
+              if (selectedItem.getScheduledCommand() != null
+                  || (!focusSubMenu() && selectedItem.getSubMenu() == null)) {
                 doItemAction(selectedItem, true, true);
               }
               eatEvent(event);
