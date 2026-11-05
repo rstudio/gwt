@@ -809,13 +809,17 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
             handleEscKey();
             eatEvent(event);
             break;
-          case KeyCodes.KEY_TAB:
-            // Submenu popups are appended to the end of the body. Focus the
-            // root menu so the browser's default Tab action moves to the
-            // element before or after it, not after the popup.
-            getRootMenu().focus();
+          case KeyCodes.KEY_TAB: {
+            // Popups are appended to the body, so focus the root menu for the
+            // default Tab action to move relative to it. focus() is deferred on
+            // some browsers, and would run after the default action.
+            MenuBar root = getRootMenu();
+            if (root != this) {
+              root.getElement().focus();
+            }
             closeAllParentsAndChildren();
             break;
+          }
           case KeyCodes.KEY_HOME:
             if (vertical) {
               selectFirst();

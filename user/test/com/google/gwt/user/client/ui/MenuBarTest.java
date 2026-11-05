@@ -661,7 +661,7 @@ public class MenuBarTest extends WidgetTestBase {
     pressKey(bar, KeyCodes.KEY_DOWN);
     assertTrue(bar.getPopup().isShowing());
     assertEquals(first, sub.getSelectedItem());
-    assertFocused(sub.getElement());
+    finishWhenFocused(sub.getElement());
   }
 
   public void testRightArrowAfterHoverFocusesFirstSubMenuItem() {
@@ -681,30 +681,39 @@ public class MenuBarTest extends WidgetTestBase {
 
     pressKey(menu, KeyCodes.KEY_RIGHT);
     assertEquals(first, sub.getSelectedItem());
-    assertFocused(sub.getElement());
+    finishWhenFocused(sub.getElement());
   }
 
-  public void testEnterAndSpaceFocusFirstSubMenuItem() {
-    for (int key : new int[] {KeyCodes.KEY_ENTER, KeyCodes.KEY_SPACE}) {
-      for (boolean vertical : new boolean[] {false, true}) {
-        MenuBar sub = new MenuBar(true);
-        MenuItem first = sub.addItem("first", BLANK_COMMAND);
-        sub.addItem("second", BLANK_COMMAND);
-        MenuBar bar = new MenuBar(vertical);
-        MenuItem parent = bar.addItem("parent", sub);
-        RootPanel.get().add(bar);
+  public void testEnterOnMenuBarItemFocusesFirstSubMenuItem() {
+    checkKeyFocusesFirstSubMenuItem(KeyCodes.KEY_ENTER, false);
+  }
 
-        bar.focus();
-        bar.selectItem(parent);
-        pressKey(bar, key);
-        assertTrue(bar.getPopup().isShowing());
-        assertEquals(first, sub.getSelectedItem());
-        assertFocused(sub.getElement());
+  public void testSpaceOnMenuBarItemFocusesFirstSubMenuItem() {
+    checkKeyFocusesFirstSubMenuItem(KeyCodes.KEY_SPACE, false);
+  }
 
-        bar.closeAllChildren(false);
-        RootPanel.get().remove(bar);
-      }
-    }
+  public void testEnterOnSubMenuParentFocusesFirstSubMenuItem() {
+    checkKeyFocusesFirstSubMenuItem(KeyCodes.KEY_ENTER, true);
+  }
+
+  public void testSpaceOnSubMenuParentFocusesFirstSubMenuItem() {
+    checkKeyFocusesFirstSubMenuItem(KeyCodes.KEY_SPACE, true);
+  }
+
+  private void checkKeyFocusesFirstSubMenuItem(int key, boolean vertical) {
+    MenuBar sub = new MenuBar(true);
+    MenuItem first = sub.addItem("first", BLANK_COMMAND);
+    sub.addItem("second", BLANK_COMMAND);
+    MenuBar bar = new MenuBar(vertical);
+    MenuItem parent = bar.addItem("parent", sub);
+    RootPanel.get().add(bar);
+
+    bar.focus();
+    bar.selectItem(parent);
+    pressKey(bar, key);
+    assertTrue(bar.getPopup().isShowing());
+    assertEquals(first, sub.getSelectedItem());
+    finishWhenFocused(sub.getElement());
   }
 
   public void testRightArrowOnNestedLeafMovesToNextMenuBarItem() {
@@ -746,6 +755,20 @@ public class MenuBarTest extends WidgetTestBase {
     assertNull(sub.getSelectedItem());
   }
 
+  /**
+   * MenuBar.focus() is deferred on some browsers, so check focus afterwards.
+   */
+  private void finishWhenFocused(final Element element) {
+    delayTestFinish(2000);
+    Scheduler.get().scheduleDeferred(new ScheduledCommand() {
+      @Override
+      public void execute() {
+        assertFocused(element);
+        finishTest();
+      }
+    });
+  }
+
   private static void pressKey(MenuBar bar, int keyCode) {
     NativeEvent event = Document.get().createKeyDownEvent(
         false, false, false, false, keyCode);
@@ -753,25 +776,33 @@ public class MenuBarTest extends WidgetTestBase {
   }
 
   public void testTabFromSubMenuFocusesRootMenu() {
-    MenuBar l2 = new MenuBar(true);
+    final MenuBar l2 = new MenuBar(true);
     l2.addItem("l2", BLANK_COMMAND);
     MenuBar l1 = new MenuBar(true);
     MenuItem item1 = l1.addItem("l1", l2);
-    MenuBar l0 = new MenuBar();
+    final MenuBar l0 = new MenuBar();
     MenuItem item0 = l0.addItem("l0", l1);
     RootPanel.get().add(l0);
 
-    l0.focus();
     l0.selectItem(item0);
     pressKey(l0, KeyCodes.KEY_DOWN);
     l1.selectItem(item1);
     pressKey(l1, KeyCodes.KEY_RIGHT);
-    assertFocused(l2.getElement());
 
-    pressKey(l2, KeyCodes.KEY_TAB);
-    assertFocused(l0.getElement());
-    assertNull(l0.getPopup());
-    assertNull(l0.getSelectedItem());
+    // Opening a submenu focuses it asynchronously on some browsers; Tab must
+    // focus the root before returning, ahead of the browser's default action.
+    delayTestFinish(2000);
+    Scheduler.get().scheduleDeferred(new ScheduledCommand() {
+      @Override
+      public void execute() {
+        assertFocused(l2.getElement());
+        pressKey(l2, KeyCodes.KEY_TAB);
+        assertFocused(l0.getElement());
+        assertNull(l0.getPopup());
+        assertNull(l0.getSelectedItem());
+        finishTest();
+      }
+    });
   }
 
   public void testOpenSubMenuIsOwnedAndLabelledByItsParent() {
