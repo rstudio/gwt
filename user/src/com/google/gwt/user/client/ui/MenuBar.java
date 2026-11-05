@@ -307,6 +307,10 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
   private boolean vertical, autoOpen;
   private boolean focusOnHover = true;
   private boolean escClosesAll = true;
+  // Set on the root menu while Tab closes the menus. Closing a menu normally
+  // focuses its parent, which on some browsers is deferred until after Tab's
+  // default action, so it would pull focus back.
+  private boolean closingWithoutFocus;
 
   /**
    * Creates an empty horizontal menu bar.
@@ -813,13 +817,18 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
             break;
           case KeyCodes.KEY_TAB: {
             // Popups are appended to the body, so the default Tab action must
-            // start from the root. Closing menus can move focus, so focus the
-            // root afterwards, synchronously since focus() can be deferred, and
-            // clear the item that focusing selects.
+            // start from the root: focus it synchronously, since focus() can be
+            // deferred, and close the menus without any of them taking it back.
             MenuBar root = getRootMenu();
-            closeAllWithoutFocus();
-            root.getElement().focus();
-            root.selectItem(null);
+            if (root != this) {
+              root.getElement().focus();
+            }
+            root.closingWithoutFocus = true;
+            try {
+              closeAllParentsAndChildren();
+            } finally {
+              root.closingWithoutFocus = false;
+            }
             break;
           }
           case KeyCodes.KEY_HOME:
@@ -866,7 +875,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
       closeAllParents();
     }
 
-    onHide(!autoClosed);
+    onHide(!autoClosed && !getRootMenu().closingWithoutFocus);
     CloseEvent.fire(MenuBar.this, sender);
     // When the menu popup closes, remember that no item is
     // currently showing a popup menu.
@@ -1063,18 +1072,6 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
     // with the mouse or key navigation
     if (parentMenu == null && popup != null) {
       popup.hide();
-    }
-  }
-
-  /**
-   * Closes all parent and child menu popups as if they were auto-closed, so
-   * no menu takes focus back. Focusing is deferred on some browsers, and would
-   * otherwise run after the browser's default Tab action.
-   */
-  private void closeAllWithoutFocus() {
-    closeAllParents();
-    if (parentMenu == null && popup != null) {
-      popup.hide(true);
     }
   }
 
