@@ -758,23 +758,43 @@ public class MenuBarTest extends WidgetTestBase {
     assertNull(bar.getPopup());
   }
 
-  public void testTabFromRootWithOpenSubMenuClosesIt() {
-    MenuBar sub = new MenuBar(true);
-    sub.addItem("leaf", BLANK_COMMAND);
-    MenuBar bar = new MenuBar();
-    MenuItem parent = bar.addItem("parent", sub);
-    RootPanel.get().add(bar);
+  public void testTabFromRootWithOpenSubMenusKeepsFocusOnRoot() {
+    MenuBar l2 = new MenuBar(true);
+    l2.addItem("leaf", BLANK_COMMAND);
+    MenuBar l1 = new MenuBar(true);
+    l1.setFocusOnHoverEnabled(false);
+    MenuItem nested = l1.addItem("nested", l2);
+    final MenuBar l0 = new MenuBar();
+    l0.setFocusOnHoverEnabled(false);
+    MenuItem parent = l0.addItem("parent", l1);
+    final TextBox next = new TextBox();
+    RootPanel.get().add(l0);
+    RootPanel.get().add(next);
 
-    // Clicking a menubar item opens its menu with focus left on the bar.
-    bar.doItemAction(parent, true, false);
-    assertTrue(sub.isAttached());
+    // Open two levels with the mouse, leaving focus on the menubar.
+    l0.getElement().focus();
+    l0.doItemAction(parent, true, false);
+    l1.itemOver(nested, true);
+    assertTrue(l2.isAttached());
 
-    pressKey(bar, KeyCodes.KEY_TAB);
-    assertNull(bar.getPopup());
-    assertNull(bar.getSelectedItem());
+    // Tab must leave focus on the root for the browser's default action...
+    pressKey(l0, KeyCodes.KEY_TAB);
+    assertFocused(l0.getElement());
+    assertNull(l0.getPopup());
+    assertNull(l0.getSelectedItem());
     assertEquals("false", parent.getElement().getAttribute("aria-expanded"));
-  }
 
+    // ...and nothing may take focus back after that action has moved it.
+    next.setFocus(true);
+    delayTestFinish(2000);
+    Scheduler.get().scheduleDeferred(new ScheduledCommand() {
+      @Override
+      public void execute() {
+        assertFocused(next.getElement());
+        finishTest();
+      }
+    });
+  }
   public void testEnterOnDisabledSubMenuParentDoesNothing() {
     MenuBar sub = new MenuBar(true);
     sub.addItem("first", BLANK_COMMAND);
