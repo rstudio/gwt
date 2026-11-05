@@ -307,6 +307,12 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
   private boolean vertical, autoOpen;
   private boolean focusOnHover = true;
   private boolean escClosesAll = true;
+  // Set on the root menu while Tab closes the menus. Closing a menu normally
+  // focuses its parent, which on some browsers is deferred until after Tab's
+  // default action, so it would pull focus back.
+  private boolean closingWithoutFocus;
+  // The open submenu, if openPopup() gave it aria-labelledby
+  private MenuBar labelledSubMenu;
 
   /**
    * Creates an empty horizontal menu bar.
@@ -713,20 +719,21 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
 
     if (vertical) {
       selectNextItem();
-    } else {
-      if (selectedItem.getSubMenu() != null
-          && !selectedItem.getSubMenu().getItems().isEmpty()
-          && (shownChildMenu == null || shownChildMenu.getSelectedItem() == null)) {
-        if (shownChildMenu == null) {
-          doItemAction(selectedItem, false, true);
-        }
-        selectedItem.getSubMenu().focus();
-      } else if (parentMenu != null) {
-        if (parentMenu.vertical) {
-          parentMenu.selectNextItem();
-        } else {
-          parentMenu.moveSelectionDown();
-        }
+    } else if (!focusSubMenu()) {
+      selectNextInAncestor(true);
+    }
+  }
+
+  /**
+   * Down on a horizontal item, or Right on a vertical one, without a submenu
+   * selects the next item of the nearest ancestor with the other orientation.
+   * Ancestors skip their own submenu, which is the one that has focus.
+   */
+  private void selectNextInAncestor(boolean ancestorVertical) {
+    for (MenuBar menu = parentMenu; menu != null; menu = menu.parentMenu) {
+      if (menu.vertical == ancestorVertical) {
+        menu.selectNextItem();
+        return;
       }
     }
   }
@@ -740,7 +747,9 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
       return;
     }
 
-    if ((shownChildMenu == null) && vertical) {
+    // A submenu opened by hovering leaves focus here, so Up still moves within
+    // this menu; selecting another item closes that submenu.
+    if (vertical) {
       selectPrevItem();
     } else if ((parentMenu != null) && parentMenu.vertical) {
       parentMenu.selectPrevItem();
@@ -806,9 +815,22 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
             handleEscKey();
             eatEvent(event);
             break;
-          case KeyCodes.KEY_TAB:
-            closeAllParentsAndChildren();
+          case KeyCodes.KEY_TAB: {
+            // Popups are appended to the body, so the default Tab action must
+            // start from the root: focus it synchronously, since focus() can be
+            // deferred, and close the menus without any of them taking it back.
+            MenuBar root = getRootMenu();
+            if (root != this) {
+              root.getElement().focus();
+            }
+            root.closingWithoutFocus = true;
+            try {
+              closeAllParentsAndChildren();
+            } finally {
+              root.closingWithoutFocus = false;
+            }
             break;
+          }
           case KeyCodes.KEY_HOME:
             if (vertical) {
               selectFirst();
@@ -824,7 +846,13 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
           case KeyCodes.KEY_ENTER:
           case KeyCodes.KEY_SPACE:
             if (!selectFirstItemIfNoneSelected()) {
-              doItemAction(selectedItem, true, true);
+              // An item's command takes precedence over its submenu, as it
+              // does for clicks. A submenu focusSubMenu() can't open, e.g. an
+              // empty one, is left closed rather than opened blank.
+              if (selectedItem.getScheduledCommand() != null
+                  || (!focusSubMenu() && selectedItem.getSubMenu() == null)) {
+                doItemAction(selectedItem, true, true);
+              }
               eatEvent(event);
             }
             break;
@@ -849,12 +877,17 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
       closeAllParents();
     }
 
-    onHide(!autoClosed);
+    onHide(!autoClosed && !getRootMenu().closingWithoutFocus);
     CloseEvent.fire(MenuBar.this, sender);
     // When the menu popup closes, remember that no item is
     // currently showing a popup menu.
     shownChildMenu = null;
     popup = null;
+    Roles.getMenuRole().removeAriaOwnsProperty(getElement());
+    if (labelledSubMenu != null) {
+      Roles.getMenuRole().removeAriaLabelledbyProperty(labelledSubMenu.getElement());
+      labelledSubMenu = null;
+    }
     if (parentMenu != null && parentMenu.popup != null) {
       parentMenu.popup.setPreviewingAllNativeEvents(true);
     }
@@ -1251,6 +1284,14 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
     return null;
   }
 
+  private MenuBar getRootMenu() {
+    MenuBar root = this;
+    while (root.parentMenu != null) {
+      root = root.parentMenu;
+    }
+    return root;
+  }
+
   private Element getItemContainerElement() {
     if (vertical) {
       return body;
@@ -1319,22 +1360,38 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
 
     if (!vertical) {
       selectNextItem();
-    } else {
-      if (selectedItem.getSubMenu() != null
-          && !selectedItem.getSubMenu().getItems().isEmpty()
-          && (shownChildMenu == null || shownChildMenu.getSelectedItem() == null)) {
-        if (shownChildMenu == null) {
-          doItemAction(selectedItem, false, true);
-        }
-        selectedItem.getSubMenu().focus();
-      } else if (parentMenu != null) {
-        if (!parentMenu.vertical) {
-          parentMenu.selectNextItem();
-        } else {
-          parentMenu.moveToNextItem();
-        }
-      }
+    } else if (!focusSubMenu()) {
+      selectNextInAncestor(false);
     }
+  }
+
+  /**
+   * Whether keyboard navigation can open the item's submenu: an empty one, e.g.
+   * one filled lazily, would open as a blank popup.
+   */
+  private static boolean canOpenSubMenu(MenuItem item) {
+    return item.isEnabled() && item.getSubMenu() != null
+        && !item.getSubMenu().getItems().isEmpty();
+  }
+
+  /**
+   * Opens the selected item's submenu if it isn't already open, and moves
+   * focus to the submenu's first item. Hovering selects items without moving
+   * focus, so the submenu may already be open with a different item selected.
+   *
+   * @return false if the selected item can't open a submenu
+   */
+  private boolean focusSubMenu() {
+    if (!canOpenSubMenu(selectedItem)) {
+      return false;
+    }
+    MenuBar subMenu = selectedItem.getSubMenu();
+    if (shownChildMenu != subMenu) {
+      doItemAction(selectedItem, false, true);
+    }
+    subMenu.selectFirst();
+    subMenu.focus();
+    return true;
   }
 
   private void handleEscKey() {
@@ -1398,6 +1455,20 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
     expandedMenuItem = item;
     item.setAriaExpanded(true);
 
+    // The popup is appended to the end of the body. Own it from this menu so
+    // assistive technology presents it inside this menu, after its items, and
+    // name it after the item that opened it unless the app has named it.
+    Element subMenuElement = shownChildMenu.getElement();
+    if (subMenuElement.getId().isEmpty()) {
+      subMenuElement.setId(DOM.createUniqueId());
+    }
+    if (!subMenuElement.hasAttribute("aria-label")
+        && !subMenuElement.hasAttribute("aria-labelledby")) {
+      Roles.getMenuRole().setAriaLabelledbyProperty(subMenuElement, Id.of(item.getElement()));
+      labelledSubMenu = shownChildMenu;
+    }
+    Roles.getMenuRole().setAriaOwnsProperty(getElement(), Id.of(subMenuElement));
+
     popup = new MenuPopup();
     popup.setWidget(shownChildMenu);
     popup.addPopupListener(this);
@@ -1440,30 +1511,15 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
    */
   private boolean selectFirstItemIfNoneSelected() {
     if (selectedItem == null) {
-      for (MenuItem nextItem : items) {
-        if (nextItem.isEnabled() && nextItem.isVisible()) {
-          selectItem(nextItem);
-          return true;
-        }
-      }
-      for (MenuItem nextItem : items) {
-        if (nextItem.isVisible()) {
-          selectItem(nextItem);
-          return true;
-        }
-      }
+      selectFirst();
       return true;
     }
     return false;
- }
+  }
 
+  // Disabled items are selectable from the keyboard: the APG menu pattern
+  // lets them receive focus so screen reader users can discover them.
   private void selectFirst() {
-    for (MenuItem nextItem : items) {
-      if (nextItem.isEnabled() && nextItem.isVisible()) {
-        selectItem(nextItem);
-        return;
-      }
-    }
     for (MenuItem nextItem : items) {
       if (nextItem.isVisible()) {
         selectItem(nextItem);
@@ -1473,13 +1529,6 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
   }
 
   private void selectLast() {
-    for (int i = items.size() - 1; i >= 0; i--) {
-      MenuItem nextItem = items.get(i);
-      if (nextItem.isEnabled() && nextItem.isVisible()) {
-        selectItem(nextItem);
-        return;
-      }
-    }
     for (int i = items.size() - 1; i >= 0; i--) {
       MenuItem nextItem = items.get(i);
       if (nextItem.isVisible()) {
@@ -1514,16 +1563,14 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
         break;
       } else {
         itemToBeSelected = items.get(index);
-        if (itemToBeSelected.isEnabled() && itemToBeSelected.isVisible()) {
+        if (itemToBeSelected.isVisible()) {
           break;
         }
       }
     }
 
     selectItem(itemToBeSelected);
-    if (shownChildMenu != null) {
-      doItemAction(itemToBeSelected, false, true);
-    }
+    showSubMenuOfSelection();
   }
 
   private void selectPrevItem() {
@@ -1551,15 +1598,31 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
         break;
       } else {
         itemToBeSelected = items.get(index);
-        if (itemToBeSelected.isEnabled() && itemToBeSelected.isVisible()) {
+        if (itemToBeSelected.isVisible()) {
           break;
         }
       }
     }
 
     selectItem(itemToBeSelected);
-    if (shownChildMenu != null) {
-      doItemAction(itemToBeSelected, false, true);
+    showSubMenuOfSelection();
+  }
+
+  /**
+   * While a submenu is open, moving the selection opens the newly selected
+   * item's submenu instead. If that item can't open one, close the previous
+   * submenu and keep focus here rather than leave it open under the selection.
+   */
+  private void showSubMenuOfSelection() {
+    if (shownChildMenu == null) {
+      return;
+    }
+    if (canOpenSubMenu(selectedItem)) {
+      doItemAction(selectedItem, false, true);
+    } else {
+      hideChildMenu(false);
+      shownChildMenu = null;
+      focus();
     }
   }
 

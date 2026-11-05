@@ -349,23 +349,73 @@ public class MenuBarTest extends WidgetTestBase {
   }
 
   public void testDisabledItem() {
+    final int[] fired = {0};
+    ScheduledCommand countingCommand = new ScheduledCommand() {
+      @Override
+      public void execute() {
+        fired[0]++;
+      }
+    };
     MenuBar bar = new MenuBar(true);
-    MenuItem item1 = new MenuItem("item1", BLANK_COMMAND);
-    MenuItem item2 = new MenuItem("item2", BLANK_COMMAND);
-    MenuItem item3 = new MenuItem("item3", BLANK_COMMAND);
+    MenuItem item1 = new MenuItem("item1", countingCommand);
+    MenuItem item2 = new MenuItem("item2", countingCommand);
+    MenuItem item3 = new MenuItem("item3", countingCommand);
     bar.addItem(item1);
     bar.addItem(item2);
     bar.addItem(item3);
     RootPanel.get().add(bar);
 
+    item1.setEnabled(false);
     item2.setEnabled(false);
 
+    // Disabled items can be focused but not activated.
     bar.moveSelectionDown();
     assertEquals(item1, bar.getSelectedItem());
+    bar.moveSelectionDown();
+    assertEquals(item2, bar.getSelectedItem());
+    pressKey(bar, KeyCodes.KEY_ENTER);
+    assertEquals(item2, bar.getSelectedItem());
     bar.moveSelectionDown();
     assertEquals(item3, bar.getSelectedItem());
     bar.moveSelectionUp();
+    assertEquals(item2, bar.getSelectedItem());
+    pressKey(bar, KeyCodes.KEY_END);
+    assertEquals(item3, bar.getSelectedItem());
+    pressKey(bar, KeyCodes.KEY_HOME);
     assertEquals(item1, bar.getSelectedItem());
+
+    // Activate the enabled item, so the count shows commands are observed.
+    pressKey(bar, KeyCodes.KEY_END);
+    pressKey(bar, KeyCodes.KEY_ENTER);
+
+    // Commands run in a finally command, after this event loop's entry exits.
+    delayTestFinish(2000);
+    Scheduler.get().scheduleDeferred(new ScheduledCommand() {
+      @Override
+      public void execute() {
+        assertEquals(1, fired[0]);
+        finishTest();
+      }
+    });
+  }
+
+  public void testMovingOntoDisabledItemClosesOpenSubMenu() {
+    MenuBar sub = new MenuBar(true);
+    sub.addItem("first", BLANK_COMMAND);
+    MenuBar bar = new MenuBar();
+    MenuItem parent = bar.addItem("parent", sub);
+    MenuItem disabled = bar.addItem("disabled", new MenuBar(true));
+    disabled.setEnabled(false);
+    RootPanel.get().add(bar);
+
+    bar.focus();
+    bar.selectItem(parent);
+    pressKey(bar, KeyCodes.KEY_DOWN);
+    assertTrue(bar.getPopup().isShowing());
+
+    pressKey(bar, KeyCodes.KEY_RIGHT);
+    assertEquals(disabled, bar.getSelectedItem());
+    assertFalse(sub.isAttached());
   }
 
   public void testEscapeKey() {
@@ -605,6 +655,329 @@ public class MenuBarTest extends WidgetTestBase {
     assertNull(l1.getPopup());
   }
   
+  public void testDownArrowAfterHoverFocusesFirstSubMenuItem() {
+    MenuBar sub = new MenuBar(true);
+    sub.setFocusOnHoverEnabled(false);
+    MenuItem first = sub.addItem("first", BLANK_COMMAND);
+    MenuItem second = sub.addItem("second", BLANK_COMMAND);
+    MenuBar bar = new MenuBar();
+    bar.setFocusOnHoverEnabled(false);
+    MenuItem parent = bar.addItem("parent", sub);
+    RootPanel.get().add(bar);
+
+    // Open the menu with the mouse and hover an item, leaving focus on the bar.
+    bar.focus();
+    bar.doItemAction(parent, true, false);
+    sub.itemOver(second, true);
+    assertEquals(second, sub.getSelectedItem());
+
+    pressKey(bar, KeyCodes.KEY_DOWN);
+    assertTrue(bar.getPopup().isShowing());
+    assertEquals(first, sub.getSelectedItem());
+    finishWhenFocused(sub.getElement());
+  }
+
+  public void testRightArrowAfterHoverFocusesFirstSubMenuItem() {
+    MenuBar sub = new MenuBar(true);
+    sub.setFocusOnHoverEnabled(false);
+    MenuItem first = sub.addItem("first", BLANK_COMMAND);
+    MenuItem second = sub.addItem("second", BLANK_COMMAND);
+    MenuBar menu = new MenuBar(true);
+    menu.setFocusOnHoverEnabled(false);
+    MenuItem parent = menu.addItem("parent", sub);
+    RootPanel.get().add(menu);
+
+    menu.focus();
+    menu.selectItem(parent);
+    menu.doItemAction(parent, false, false);
+    sub.itemOver(second, true);
+
+    pressKey(menu, KeyCodes.KEY_RIGHT);
+    assertEquals(first, sub.getSelectedItem());
+    finishWhenFocused(sub.getElement());
+  }
+
+  public void testEnterOnMenuBarItemFocusesFirstSubMenuItem() {
+    checkKeyFocusesFirstSubMenuItem(KeyCodes.KEY_ENTER, false);
+  }
+
+  public void testSpaceOnMenuBarItemFocusesFirstSubMenuItem() {
+    checkKeyFocusesFirstSubMenuItem(KeyCodes.KEY_SPACE, false);
+  }
+
+  public void testEnterOnSubMenuParentFocusesFirstSubMenuItem() {
+    checkKeyFocusesFirstSubMenuItem(KeyCodes.KEY_ENTER, true);
+  }
+
+  public void testSpaceOnSubMenuParentFocusesFirstSubMenuItem() {
+    checkKeyFocusesFirstSubMenuItem(KeyCodes.KEY_SPACE, true);
+  }
+
+  private void checkKeyFocusesFirstSubMenuItem(int key, boolean vertical) {
+    MenuBar sub = new MenuBar(true);
+    MenuItem first = sub.addItem("first", BLANK_COMMAND);
+    sub.addItem("second", BLANK_COMMAND);
+    MenuBar bar = new MenuBar(vertical);
+    MenuItem parent = bar.addItem("parent", sub);
+    RootPanel.get().add(bar);
+
+    bar.focus();
+    bar.selectItem(parent);
+    pressKey(bar, key);
+    assertTrue(bar.getPopup().isShowing());
+    assertEquals(first, sub.getSelectedItem());
+    finishWhenFocused(sub.getElement());
+  }
+
+  public void testRightArrowOnNestedLeafMovesToNextMenuBarItem() {
+    MenuBar l2 = new MenuBar(true);
+    MenuItem leaf = l2.addItem("leaf", BLANK_COMMAND);
+    MenuBar l1 = new MenuBar(true);
+    MenuItem nested = l1.addItem("nested", l2);
+    MenuBar other = new MenuBar(true);
+    other.addItem("other", BLANK_COMMAND);
+    MenuBar l0 = new MenuBar();
+    MenuItem first = l0.addItem("first", l1);
+    MenuItem second = l0.addItem("second", other);
+    RootPanel.get().add(l0);
+
+    l0.selectItem(first);
+    pressKey(l0, KeyCodes.KEY_DOWN);
+    assertEquals(nested, l1.getSelectedItem());
+    pressKey(l1, KeyCodes.KEY_RIGHT);
+    assertEquals(leaf, l2.getSelectedItem());
+
+    pressKey(l2, KeyCodes.KEY_RIGHT);
+    assertEquals(second, l0.getSelectedItem());
+    assertTrue(other.isAttached());
+    assertFalse(l2.isAttached());
+  }
+
+  public void testRightArrowOntoCommandItemClosesOpenSubMenu() {
+    MenuBar sub = new MenuBar(true);
+    sub.addItem("leaf", BLANK_COMMAND);
+    MenuBar bar = new MenuBar();
+    MenuItem parent = bar.addItem("parent", sub);
+    MenuItem command = bar.addItem("command", BLANK_COMMAND);
+    RootPanel.get().add(bar);
+
+    bar.selectItem(parent);
+    pressKey(bar, KeyCodes.KEY_DOWN);
+    assertTrue(sub.isAttached());
+
+    pressKey(sub, KeyCodes.KEY_RIGHT);
+    assertEquals(command, bar.getSelectedItem());
+    assertFalse(sub.isAttached());
+    assertNull(bar.getPopup());
+  }
+
+  public void testRightArrowOntoEmptySubMenuParentClosesOpenSubMenu() {
+    MenuBar sub = new MenuBar(true);
+    sub.addItem("leaf", BLANK_COMMAND);
+    MenuBar empty = new MenuBar(true);
+    MenuBar bar = new MenuBar();
+    MenuItem parent = bar.addItem("parent", sub);
+    MenuItem emptyParent = bar.addItem("empty", empty);
+    RootPanel.get().add(bar);
+
+    bar.selectItem(parent);
+    pressKey(bar, KeyCodes.KEY_DOWN);
+    assertTrue(sub.isAttached());
+
+    pressKey(bar, KeyCodes.KEY_RIGHT);
+    assertEquals(emptyParent, bar.getSelectedItem());
+    assertFalse(sub.isAttached());
+    assertFalse(empty.isAttached());
+    assertNull(bar.getPopup());
+  }
+
+  public void testTabFromRootWithOpenSubMenusKeepsFocusOnRoot() {
+    MenuBar l2 = new MenuBar(true);
+    l2.addItem("leaf", BLANK_COMMAND);
+    MenuBar l1 = new MenuBar(true);
+    l1.setFocusOnHoverEnabled(false);
+    MenuItem nested = l1.addItem("nested", l2);
+    final MenuBar l0 = new MenuBar();
+    l0.setFocusOnHoverEnabled(false);
+    MenuItem parent = l0.addItem("parent", l1);
+    final TextBox next = new TextBox();
+    RootPanel.get().add(l0);
+    RootPanel.get().add(next);
+
+    // Open two levels with the mouse, leaving focus on the menubar.
+    l0.getElement().focus();
+    l0.doItemAction(parent, true, false);
+    l1.itemOver(nested, true);
+    assertTrue(l2.isAttached());
+
+    // Tab must leave focus on the root for the browser's default action...
+    pressKey(l0, KeyCodes.KEY_TAB);
+    assertFocused(l0.getElement());
+    assertNull(l0.getPopup());
+    assertNull(l0.getSelectedItem());
+    assertEquals("false", parent.getElement().getAttribute("aria-expanded"));
+
+    // ...and nothing may take focus back after that action has moved it.
+    next.setFocus(true);
+    delayTestFinish(2000);
+    Scheduler.get().scheduleDeferred(new ScheduledCommand() {
+      @Override
+      public void execute() {
+        assertFocused(next.getElement());
+        finishTest();
+      }
+    });
+  }
+  public void testUpArrowAfterHoverMovesWithinMenu() {
+    MenuBar flyout = new MenuBar(true);
+    flyout.addItem("recent", BLANK_COMMAND);
+    MenuBar file = new MenuBar(true);
+    file.setFocusOnHoverEnabled(false);
+    MenuItem first = file.addItem("first", BLANK_COMMAND);
+    MenuItem parent = file.addItem("parent", flyout);
+    MenuBar bar = new MenuBar();
+    MenuItem fileItem = bar.addItem("file", file);
+    RootPanel.get().add(bar);
+
+    bar.selectItem(fileItem);
+    pressKey(bar, KeyCodes.KEY_DOWN);
+    // Hovering a submenu parent opens its flyout but leaves focus in the menu.
+    file.itemOver(parent, true);
+    assertTrue(flyout.isAttached());
+
+    pressKey(file, KeyCodes.KEY_UP);
+    assertTrue(bar.getPopup().isShowing());
+    assertEquals(first, file.getSelectedItem());
+    assertFalse(flyout.isAttached());
+  }
+
+  public void testEnterAndSpaceDoNotOpenEmptySubMenu() {
+    for (int key : new int[] {KeyCodes.KEY_ENTER, KeyCodes.KEY_SPACE}) {
+      for (boolean vertical : new boolean[] {false, true}) {
+        MenuBar empty = new MenuBar(true);
+        MenuBar bar = new MenuBar(vertical);
+        MenuItem parent = bar.addItem("parent", empty);
+        RootPanel.get().add(bar);
+
+        bar.selectItem(parent);
+        pressKey(bar, key);
+        assertNull(bar.getPopup());
+        assertFalse(empty.isAttached());
+        assertEquals("false", parent.getElement().getAttribute("aria-expanded"));
+
+        RootPanel.get().remove(bar);
+      }
+    }
+  }
+
+  public void testEnterOnDisabledSubMenuParentDoesNothing() {
+    MenuBar sub = new MenuBar(true);
+    sub.addItem("first", BLANK_COMMAND);
+    MenuBar bar = new MenuBar();
+    MenuItem parent = bar.addItem("parent", sub);
+    parent.setEnabled(false);
+    RootPanel.get().add(bar);
+
+    bar.focus();
+    bar.selectItem(parent);
+    pressKey(bar, KeyCodes.KEY_ENTER);
+    assertNull(bar.getPopup());
+    assertNull(sub.getSelectedItem());
+  }
+
+  /**
+   * MenuBar.focus() is deferred on some browsers, so check focus afterwards.
+   */
+  private void finishWhenFocused(final Element element) {
+    delayTestFinish(2000);
+    Scheduler.get().scheduleDeferred(new ScheduledCommand() {
+      @Override
+      public void execute() {
+        assertFocused(element);
+        finishTest();
+      }
+    });
+  }
+
+  private static void pressKey(MenuBar bar, int keyCode) {
+    NativeEvent event = Document.get().createKeyDownEvent(
+        false, false, false, false, keyCode);
+    bar.getElement().dispatchEvent(event);
+  }
+
+  public void testTabFromSubMenuFocusesRootMenu() {
+    final MenuBar l2 = new MenuBar(true);
+    l2.addItem("l2", BLANK_COMMAND);
+    MenuBar l1 = new MenuBar(true);
+    MenuItem item1 = l1.addItem("l1", l2);
+    final MenuBar l0 = new MenuBar();
+    MenuItem item0 = l0.addItem("l0", l1);
+    RootPanel.get().add(l0);
+
+    l0.selectItem(item0);
+    pressKey(l0, KeyCodes.KEY_DOWN);
+    l1.selectItem(item1);
+    pressKey(l1, KeyCodes.KEY_RIGHT);
+
+    // Opening a submenu focuses it asynchronously on some browsers; Tab must
+    // focus the root before returning, ahead of the browser's default action.
+    delayTestFinish(2000);
+    Scheduler.get().scheduleDeferred(new ScheduledCommand() {
+      @Override
+      public void execute() {
+        assertFocused(l2.getElement());
+        pressKey(l2, KeyCodes.KEY_TAB);
+        assertFocused(l0.getElement());
+        assertNull(l0.getPopup());
+        assertNull(l0.getSelectedItem());
+        finishTest();
+      }
+    });
+  }
+
+  public void testOpenSubMenuIsOwnedAndLabelledByItsParent() {
+    MenuBar sub = new MenuBar(true);
+    sub.addItem("first", BLANK_COMMAND);
+    MenuBar bar = new MenuBar();
+    MenuItem parent = bar.addItem("parent", sub);
+    RootPanel.get().add(bar);
+
+    assertEquals("false", parent.getElement().getAttribute("aria-expanded"));
+    bar.focus();
+    bar.selectItem(parent);
+    pressKey(bar, KeyCodes.KEY_DOWN);
+    assertEquals("true", parent.getElement().getAttribute("aria-expanded"));
+    String subMenuId = sub.getElement().getId();
+    assertFalse(subMenuId.isEmpty());
+    assertEquals(subMenuId, bar.getElement().getAttribute("aria-owns"));
+    assertEquals(parent.getElement().getId(),
+        sub.getElement().getAttribute("aria-labelledby"));
+
+    pressKey(sub, KeyCodes.KEY_ESCAPE);
+    assertNull(bar.getPopup());
+    assertFalse(bar.getElement().hasAttribute("aria-owns"));
+    assertFalse(sub.getElement().hasAttribute("aria-labelledby"));
+    assertEquals("false", parent.getElement().getAttribute("aria-expanded"));
+  }
+
+  public void testOpenSubMenuKeepsLabelSetByApp() {
+    MenuBar sub = new MenuBar(true);
+    sub.addItem("first", BLANK_COMMAND);
+    sub.getElement().setAttribute("aria-label", "App name");
+    MenuBar bar = new MenuBar();
+    MenuItem parent = bar.addItem("parent", sub);
+    RootPanel.get().add(bar);
+
+    bar.selectItem(parent);
+    pressKey(bar, KeyCodes.KEY_DOWN);
+    assertTrue(sub.isAttached());
+    assertFalse(sub.getElement().hasAttribute("aria-labelledby"));
+
+    bar.closeAllChildren(false);
+    assertEquals("App name", sub.getElement().getAttribute("aria-label"));
+    assertFalse(sub.getElement().hasAttribute("aria-labelledby"));
+  }
+
   public void testPresentationRole() {
     MenuBar menu = new MenuBar();
     assertNotNull(menu.getElement());

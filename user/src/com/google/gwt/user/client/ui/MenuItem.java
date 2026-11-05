@@ -353,16 +353,20 @@ public class MenuItem extends UIObject implements HasHTML, HasEnabled, HasSafeHt
     } else {
       // Update a11y role "haspopup"
       Roles.getMenuitemRole().setAriaHaspopupProperty(getElement(), false);
+      getElement().removeAttribute("aria-expanded");
     }
   }
 
+  /**
+   * Sets whether this item's submenu is shown. The APG menu pattern sets
+   * aria-expanded to false, rather than removing it, while the submenu is
+   * hidden.
+   *
+   * @param expanded <code>true</code> if the submenu is shown
+   */
   public void setAriaExpanded(boolean expanded)
   {
-    // W3C recommends having no aria-expanded state when value is false
-    if (expanded)
-      getElement().setAttribute("aria-expanded", "true");
-    else
-      getElement().removeAttribute("aria-expanded");
+    getElement().setAttribute("aria-expanded", String.valueOf(expanded));
   }
 
   @Override
