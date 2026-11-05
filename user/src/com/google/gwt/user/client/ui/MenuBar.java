@@ -854,6 +854,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
     // currently showing a popup menu.
     shownChildMenu = null;
     popup = null;
+    Roles.getMenuRole().removeAriaOwnsProperty(getElement());
     if (parentMenu != null && parentMenu.popup != null) {
       parentMenu.popup.setPreviewingAllNativeEvents(true);
     }
@@ -1415,6 +1416,16 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
     shownChildMenu.parentMenu = this;
     expandedMenuItem = item;
     item.setAriaExpanded(true);
+
+    // The popup is appended to the end of the body. Own it from this menu so
+    // assistive technology presents it inside this menu, after its items, and
+    // name it after the item that opened it.
+    Element subMenuElement = shownChildMenu.getElement();
+    if (subMenuElement.getId().isEmpty()) {
+      subMenuElement.setId(DOM.createUniqueId());
+    }
+    Roles.getMenuRole().setAriaLabelledbyProperty(subMenuElement, Id.of(item.getElement()));
+    Roles.getMenuRole().setAriaOwnsProperty(getElement(), Id.of(subMenuElement));
 
     popup = new MenuPopup();
     popup.setWidget(shownChildMenu);

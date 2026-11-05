@@ -750,6 +750,27 @@ public class MenuBarTest extends WidgetTestBase {
     assertNull(l0.getSelectedItem());
   }
 
+  public void testOpenSubMenuIsOwnedAndLabelledByItsParent() {
+    MenuBar sub = new MenuBar(true);
+    sub.addItem("first", BLANK_COMMAND);
+    MenuBar bar = new MenuBar();
+    MenuItem parent = bar.addItem("parent", sub);
+    RootPanel.get().add(bar);
+
+    bar.focus();
+    bar.selectItem(parent);
+    pressKey(bar, KeyCodes.KEY_DOWN);
+    String subMenuId = sub.getElement().getId();
+    assertFalse(subMenuId.isEmpty());
+    assertEquals(subMenuId, bar.getElement().getAttribute("aria-owns"));
+    assertEquals(parent.getElement().getId(),
+        sub.getElement().getAttribute("aria-labelledby"));
+
+    pressKey(sub, KeyCodes.KEY_ESCAPE);
+    assertNull(bar.getPopup());
+    assertFalse(bar.getElement().hasAttribute("aria-owns"));
+  }
+
   public void testPresentationRole() {
     MenuBar menu = new MenuBar();
     assertNotNull(menu.getElement());
