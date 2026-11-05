@@ -1596,18 +1596,19 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
 
   /**
    * While a submenu is open, moving the selection opens the newly selected
-   * item's submenu instead. A disabled item can't open one, so close the
-   * previous item's submenu rather than leave it open under the selection.
+   * item's submenu instead. If that item can't open one, close the previous
+   * submenu and keep focus here rather than leave it open under the selection.
    */
   private void showSubMenuOfSelection() {
     if (shownChildMenu == null) {
       return;
     }
-    if (selectedItem.isEnabled()) {
+    if (selectedItem.isEnabled() && selectedItem.getSubMenu() != null) {
       doItemAction(selectedItem, false, true);
     } else {
       hideChildMenu(false);
       shownChildMenu = null;
+      focus();
     }
   }
 

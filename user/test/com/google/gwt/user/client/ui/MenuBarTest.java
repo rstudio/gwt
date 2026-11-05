@@ -740,6 +740,24 @@ public class MenuBarTest extends WidgetTestBase {
     assertFalse(l2.isAttached());
   }
 
+  public void testRightArrowOntoCommandItemClosesOpenSubMenu() {
+    MenuBar sub = new MenuBar(true);
+    sub.addItem("leaf", BLANK_COMMAND);
+    MenuBar bar = new MenuBar();
+    MenuItem parent = bar.addItem("parent", sub);
+    MenuItem command = bar.addItem("command", BLANK_COMMAND);
+    RootPanel.get().add(bar);
+
+    bar.selectItem(parent);
+    pressKey(bar, KeyCodes.KEY_DOWN);
+    assertTrue(sub.isAttached());
+
+    pressKey(sub, KeyCodes.KEY_RIGHT);
+    assertEquals(command, bar.getSelectedItem());
+    assertFalse(sub.isAttached());
+    assertNull(bar.getPopup());
+  }
+
   public void testEnterOnDisabledSubMenuParentDoesNothing() {
     MenuBar sub = new MenuBar(true);
     sub.addItem("first", BLANK_COMMAND);
