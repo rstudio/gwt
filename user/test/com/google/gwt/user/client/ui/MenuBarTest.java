@@ -758,6 +758,23 @@ public class MenuBarTest extends WidgetTestBase {
     assertNull(bar.getPopup());
   }
 
+  public void testTabFromRootWithOpenSubMenuClosesIt() {
+    MenuBar sub = new MenuBar(true);
+    sub.addItem("leaf", BLANK_COMMAND);
+    MenuBar bar = new MenuBar();
+    MenuItem parent = bar.addItem("parent", sub);
+    RootPanel.get().add(bar);
+
+    // Clicking a menubar item opens its menu with focus left on the bar.
+    bar.doItemAction(parent, true, false);
+    assertTrue(sub.isAttached());
+
+    pressKey(bar, KeyCodes.KEY_TAB);
+    assertNull(bar.getPopup());
+    assertNull(bar.getSelectedItem());
+    assertEquals("false", parent.getElement().getAttribute("aria-expanded"));
+  }
+
   public void testEnterOnDisabledSubMenuParentDoesNothing() {
     MenuBar sub = new MenuBar(true);
     sub.addItem("first", BLANK_COMMAND);

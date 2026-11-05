@@ -817,7 +817,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
             if (root != this) {
               root.getElement().focus();
             }
-            closeAllParentsAndChildren();
+            closeAllWithoutFocus();
             break;
           }
           case KeyCodes.KEY_HOME:
@@ -1061,6 +1061,18 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
     // with the mouse or key navigation
     if (parentMenu == null && popup != null) {
       popup.hide();
+    }
+  }
+
+  /**
+   * Closes all parent and child menu popups as if they were auto-closed, so
+   * no menu takes focus back. Focusing is deferred on some browsers, and would
+   * otherwise run after the browser's default Tab action.
+   */
+  private void closeAllWithoutFocus() {
+    closeAllParents();
+    if (parentMenu == null && popup != null) {
+      popup.hide(true);
     }
   }
 
