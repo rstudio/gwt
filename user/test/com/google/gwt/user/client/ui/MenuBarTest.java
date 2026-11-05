@@ -349,23 +349,60 @@ public class MenuBarTest extends WidgetTestBase {
   }
 
   public void testDisabledItem() {
+    final int[] fired = {0};
+    ScheduledCommand countingCommand = new ScheduledCommand() {
+      @Override
+      public void execute() {
+        fired[0]++;
+      }
+    };
     MenuBar bar = new MenuBar(true);
-    MenuItem item1 = new MenuItem("item1", BLANK_COMMAND);
-    MenuItem item2 = new MenuItem("item2", BLANK_COMMAND);
-    MenuItem item3 = new MenuItem("item3", BLANK_COMMAND);
+    MenuItem item1 = new MenuItem("item1", countingCommand);
+    MenuItem item2 = new MenuItem("item2", countingCommand);
+    MenuItem item3 = new MenuItem("item3", countingCommand);
     bar.addItem(item1);
     bar.addItem(item2);
     bar.addItem(item3);
     RootPanel.get().add(bar);
 
+    item1.setEnabled(false);
     item2.setEnabled(false);
 
+    // Disabled items can be focused but not activated.
     bar.moveSelectionDown();
     assertEquals(item1, bar.getSelectedItem());
+    bar.moveSelectionDown();
+    assertEquals(item2, bar.getSelectedItem());
+    pressKey(bar, KeyCodes.KEY_ENTER);
+    assertEquals(item2, bar.getSelectedItem());
     bar.moveSelectionDown();
     assertEquals(item3, bar.getSelectedItem());
     bar.moveSelectionUp();
+    assertEquals(item2, bar.getSelectedItem());
+    pressKey(bar, KeyCodes.KEY_END);
+    assertEquals(item3, bar.getSelectedItem());
+    pressKey(bar, KeyCodes.KEY_HOME);
     assertEquals(item1, bar.getSelectedItem());
+    assertEquals(0, fired[0]);
+  }
+
+  public void testMovingOntoDisabledItemClosesOpenSubMenu() {
+    MenuBar sub = new MenuBar(true);
+    sub.addItem("first", BLANK_COMMAND);
+    MenuBar bar = new MenuBar();
+    MenuItem parent = bar.addItem("parent", sub);
+    MenuItem disabled = bar.addItem("disabled", new MenuBar(true));
+    disabled.setEnabled(false);
+    RootPanel.get().add(bar);
+
+    bar.focus();
+    bar.selectItem(parent);
+    pressKey(bar, KeyCodes.KEY_DOWN);
+    assertTrue(bar.getPopup().isShowing());
+
+    pressKey(bar, KeyCodes.KEY_RIGHT);
+    assertEquals(disabled, bar.getSelectedItem());
+    assertFalse(sub.isAttached());
   }
 
   public void testEscapeKey() {

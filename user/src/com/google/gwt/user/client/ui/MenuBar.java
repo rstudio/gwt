@@ -1446,30 +1446,15 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
    */
   private boolean selectFirstItemIfNoneSelected() {
     if (selectedItem == null) {
-      for (MenuItem nextItem : items) {
-        if (nextItem.isEnabled() && nextItem.isVisible()) {
-          selectItem(nextItem);
-          return true;
-        }
-      }
-      for (MenuItem nextItem : items) {
-        if (nextItem.isVisible()) {
-          selectItem(nextItem);
-          return true;
-        }
-      }
+      selectFirst();
       return true;
     }
     return false;
- }
+  }
 
+  // Disabled items are selectable from the keyboard: the APG menu pattern
+  // lets them receive focus so screen reader users can discover them.
   private void selectFirst() {
-    for (MenuItem nextItem : items) {
-      if (nextItem.isEnabled() && nextItem.isVisible()) {
-        selectItem(nextItem);
-        return;
-      }
-    }
     for (MenuItem nextItem : items) {
       if (nextItem.isVisible()) {
         selectItem(nextItem);
@@ -1479,13 +1464,6 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
   }
 
   private void selectLast() {
-    for (int i = items.size() - 1; i >= 0; i--) {
-      MenuItem nextItem = items.get(i);
-      if (nextItem.isEnabled() && nextItem.isVisible()) {
-        selectItem(nextItem);
-        return;
-      }
-    }
     for (int i = items.size() - 1; i >= 0; i--) {
       MenuItem nextItem = items.get(i);
       if (nextItem.isVisible()) {
@@ -1520,16 +1498,14 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
         break;
       } else {
         itemToBeSelected = items.get(index);
-        if (itemToBeSelected.isEnabled() && itemToBeSelected.isVisible()) {
+        if (itemToBeSelected.isVisible()) {
           break;
         }
       }
     }
 
     selectItem(itemToBeSelected);
-    if (shownChildMenu != null) {
-      doItemAction(itemToBeSelected, false, true);
-    }
+    showSubMenuOfSelection();
   }
 
   private void selectPrevItem() {
@@ -1557,15 +1533,30 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
         break;
       } else {
         itemToBeSelected = items.get(index);
-        if (itemToBeSelected.isEnabled() && itemToBeSelected.isVisible()) {
+        if (itemToBeSelected.isVisible()) {
           break;
         }
       }
     }
 
     selectItem(itemToBeSelected);
-    if (shownChildMenu != null) {
-      doItemAction(itemToBeSelected, false, true);
+    showSubMenuOfSelection();
+  }
+
+  /**
+   * While a submenu is open, moving the selection opens the newly selected
+   * item's submenu instead. A disabled item can't open one, so close the
+   * previous item's submenu rather than leave it open under the selection.
+   */
+  private void showSubMenuOfSelection() {
+    if (shownChildMenu == null) {
+      return;
+    }
+    if (selectedItem.isEnabled()) {
+      doItemAction(selectedItem, false, true);
+    } else {
+      hideChildMenu(false);
+      shownChildMenu = null;
     }
   }
 
