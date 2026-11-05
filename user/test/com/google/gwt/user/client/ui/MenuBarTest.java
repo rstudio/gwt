@@ -383,7 +383,20 @@ public class MenuBarTest extends WidgetTestBase {
     assertEquals(item3, bar.getSelectedItem());
     pressKey(bar, KeyCodes.KEY_HOME);
     assertEquals(item1, bar.getSelectedItem());
-    assertEquals(0, fired[0]);
+
+    // Activate the enabled item, so the count shows commands are observed.
+    pressKey(bar, KeyCodes.KEY_END);
+    pressKey(bar, KeyCodes.KEY_ENTER);
+
+    // Commands run in a finally command, after this event loop's entry exits.
+    delayTestFinish(2000);
+    Scheduler.get().scheduleDeferred(new ScheduledCommand() {
+      @Override
+      public void execute() {
+        assertEquals(1, fired[0]);
+        finishTest();
+      }
+    });
   }
 
   public void testMovingOntoDisabledItemClosesOpenSubMenu() {
