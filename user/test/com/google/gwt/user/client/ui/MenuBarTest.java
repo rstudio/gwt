@@ -707,6 +707,30 @@ public class MenuBarTest extends WidgetTestBase {
     }
   }
 
+  public void testRightArrowOnNestedLeafMovesToNextMenuBarItem() {
+    MenuBar l2 = new MenuBar(true);
+    MenuItem leaf = l2.addItem("leaf", BLANK_COMMAND);
+    MenuBar l1 = new MenuBar(true);
+    MenuItem nested = l1.addItem("nested", l2);
+    MenuBar other = new MenuBar(true);
+    other.addItem("other", BLANK_COMMAND);
+    MenuBar l0 = new MenuBar();
+    MenuItem first = l0.addItem("first", l1);
+    MenuItem second = l0.addItem("second", other);
+    RootPanel.get().add(l0);
+
+    l0.selectItem(first);
+    pressKey(l0, KeyCodes.KEY_DOWN);
+    assertEquals(nested, l1.getSelectedItem());
+    pressKey(l1, KeyCodes.KEY_RIGHT);
+    assertEquals(leaf, l2.getSelectedItem());
+
+    pressKey(l2, KeyCodes.KEY_RIGHT);
+    assertEquals(second, l0.getSelectedItem());
+    assertTrue(other.isAttached());
+    assertFalse(l2.isAttached());
+  }
+
   public void testEnterOnDisabledSubMenuParentDoesNothing() {
     MenuBar sub = new MenuBar(true);
     sub.addItem("first", BLANK_COMMAND);
