@@ -713,20 +713,11 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
 
     if (vertical) {
       selectNextItem();
-    } else {
-      if (selectedItem.getSubMenu() != null
-          && !selectedItem.getSubMenu().getItems().isEmpty()
-          && (shownChildMenu == null || shownChildMenu.getSelectedItem() == null)) {
-        if (shownChildMenu == null) {
-          doItemAction(selectedItem, false, true);
-        }
-        selectedItem.getSubMenu().focus();
-      } else if (parentMenu != null) {
-        if (parentMenu.vertical) {
-          parentMenu.selectNextItem();
-        } else {
-          parentMenu.moveSelectionDown();
-        }
+    } else if (!focusSubMenu() && parentMenu != null) {
+      if (parentMenu.vertical) {
+        parentMenu.selectNextItem();
+      } else {
+        parentMenu.moveSelectionDown();
       }
     }
   }
@@ -824,7 +815,11 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
           case KeyCodes.KEY_ENTER:
           case KeyCodes.KEY_SPACE:
             if (!selectFirstItemIfNoneSelected()) {
-              doItemAction(selectedItem, true, true);
+              // An item's command takes precedence over its submenu, as it
+              // does for clicks.
+              if (selectedItem.getScheduledCommand() != null || !focusSubMenu()) {
+                doItemAction(selectedItem, true, true);
+              }
               eatEvent(event);
             }
             break;
@@ -1319,22 +1314,33 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
 
     if (!vertical) {
       selectNextItem();
-    } else {
-      if (selectedItem.getSubMenu() != null
-          && !selectedItem.getSubMenu().getItems().isEmpty()
-          && (shownChildMenu == null || shownChildMenu.getSelectedItem() == null)) {
-        if (shownChildMenu == null) {
-          doItemAction(selectedItem, false, true);
-        }
-        selectedItem.getSubMenu().focus();
-      } else if (parentMenu != null) {
-        if (!parentMenu.vertical) {
-          parentMenu.selectNextItem();
-        } else {
-          parentMenu.moveToNextItem();
-        }
+    } else if (!focusSubMenu() && parentMenu != null) {
+      if (!parentMenu.vertical) {
+        parentMenu.selectNextItem();
+      } else {
+        parentMenu.moveToNextItem();
       }
     }
+  }
+
+  /**
+   * Opens the selected item's submenu if it isn't already open, and moves
+   * focus to the submenu's first item. Hovering selects items without moving
+   * focus, so the submenu may already be open with a different item selected.
+   *
+   * @return false if the selected item has no enabled, non-empty submenu
+   */
+  private boolean focusSubMenu() {
+    MenuBar subMenu = selectedItem.getSubMenu();
+    if (subMenu == null || subMenu.getItems().isEmpty() || !selectedItem.isEnabled()) {
+      return false;
+    }
+    if (shownChildMenu != subMenu) {
+      doItemAction(selectedItem, false, true);
+    }
+    subMenu.selectFirst();
+    subMenu.focus();
+    return true;
   }
 
   private void handleEscKey() {

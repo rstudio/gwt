@@ -605,6 +605,92 @@ public class MenuBarTest extends WidgetTestBase {
     assertNull(l1.getPopup());
   }
   
+  public void testDownArrowAfterHoverFocusesFirstSubMenuItem() {
+    MenuBar sub = new MenuBar(true);
+    sub.setFocusOnHoverEnabled(false);
+    MenuItem first = sub.addItem("first", BLANK_COMMAND);
+    MenuItem second = sub.addItem("second", BLANK_COMMAND);
+    MenuBar bar = new MenuBar();
+    bar.setFocusOnHoverEnabled(false);
+    MenuItem parent = bar.addItem("parent", sub);
+    RootPanel.get().add(bar);
+
+    // Open the menu with the mouse and hover an item, leaving focus on the bar.
+    bar.focus();
+    bar.doItemAction(parent, true, false);
+    sub.itemOver(second, true);
+    assertEquals(second, sub.getSelectedItem());
+
+    pressKey(bar, KeyCodes.KEY_DOWN);
+    assertTrue(bar.getPopup().isShowing());
+    assertEquals(first, sub.getSelectedItem());
+    assertFocused(sub.getElement());
+  }
+
+  public void testRightArrowAfterHoverFocusesFirstSubMenuItem() {
+    MenuBar sub = new MenuBar(true);
+    sub.setFocusOnHoverEnabled(false);
+    MenuItem first = sub.addItem("first", BLANK_COMMAND);
+    MenuItem second = sub.addItem("second", BLANK_COMMAND);
+    MenuBar menu = new MenuBar(true);
+    menu.setFocusOnHoverEnabled(false);
+    MenuItem parent = menu.addItem("parent", sub);
+    RootPanel.get().add(menu);
+
+    menu.focus();
+    menu.selectItem(parent);
+    menu.doItemAction(parent, false, false);
+    sub.itemOver(second, true);
+
+    pressKey(menu, KeyCodes.KEY_RIGHT);
+    assertEquals(first, sub.getSelectedItem());
+    assertFocused(sub.getElement());
+  }
+
+  public void testEnterAndSpaceFocusFirstSubMenuItem() {
+    for (int key : new int[] {KeyCodes.KEY_ENTER, KeyCodes.KEY_SPACE}) {
+      for (boolean vertical : new boolean[] {false, true}) {
+        MenuBar sub = new MenuBar(true);
+        MenuItem first = sub.addItem("first", BLANK_COMMAND);
+        sub.addItem("second", BLANK_COMMAND);
+        MenuBar bar = new MenuBar(vertical);
+        MenuItem parent = bar.addItem("parent", sub);
+        RootPanel.get().add(bar);
+
+        bar.focus();
+        bar.selectItem(parent);
+        pressKey(bar, key);
+        assertTrue(bar.getPopup().isShowing());
+        assertEquals(first, sub.getSelectedItem());
+        assertFocused(sub.getElement());
+
+        bar.closeAllChildren(false);
+        RootPanel.get().remove(bar);
+      }
+    }
+  }
+
+  public void testEnterOnDisabledSubMenuParentDoesNothing() {
+    MenuBar sub = new MenuBar(true);
+    sub.addItem("first", BLANK_COMMAND);
+    MenuBar bar = new MenuBar();
+    MenuItem parent = bar.addItem("parent", sub);
+    parent.setEnabled(false);
+    RootPanel.get().add(bar);
+
+    bar.focus();
+    bar.selectItem(parent);
+    pressKey(bar, KeyCodes.KEY_ENTER);
+    assertNull(bar.getPopup());
+    assertNull(sub.getSelectedItem());
+  }
+
+  private static void pressKey(MenuBar bar, int keyCode) {
+    NativeEvent event = Document.get().createKeyDownEvent(
+        false, false, false, false, keyCode);
+    bar.getElement().dispatchEvent(event);
+  }
+
   public void testPresentationRole() {
     MenuBar menu = new MenuBar();
     assertNotNull(menu.getElement());
