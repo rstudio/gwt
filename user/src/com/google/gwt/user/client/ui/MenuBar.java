@@ -720,23 +720,21 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
     if (vertical) {
       selectNextItem();
     } else if (!focusSubMenu()) {
-      moveDownFromChild();
+      selectNextInAncestor(true);
     }
   }
 
   /**
-   * Down on a horizontal menu item without a submenu moves down in the
-   * nearest vertical ancestor. Ancestors skip their own submenu, which is the
-   * one that has focus.
+   * Down on a horizontal item, or Right on a vertical one, without a submenu
+   * selects the next item of the nearest ancestor with the other orientation.
+   * Ancestors skip their own submenu, which is the one that has focus.
    */
-  private void moveDownFromChild() {
-    if (parentMenu == null) {
-      return;
-    }
-    if (parentMenu.vertical) {
-      parentMenu.selectNextItem();
-    } else {
-      parentMenu.moveDownFromChild();
+  private void selectNextInAncestor(boolean ancestorVertical) {
+    for (MenuBar menu = parentMenu; menu != null; menu = menu.parentMenu) {
+      if (menu.vertical == ancestorVertical) {
+        menu.selectNextItem();
+        return;
+      }
     }
   }
 
@@ -1361,23 +1359,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
     if (!vertical) {
       selectNextItem();
     } else if (!focusSubMenu()) {
-      moveRightFromChild();
-    }
-  }
-
-  /**
-   * Right on a vertical menu item without a submenu moves to the next item of
-   * the nearest horizontal ancestor. Ancestors skip their own submenu, which
-   * is the one that has focus.
-   */
-  private void moveRightFromChild() {
-    if (parentMenu == null) {
-      return;
-    }
-    if (!parentMenu.vertical) {
-      parentMenu.selectNextItem();
-    } else {
-      parentMenu.moveRightFromChild();
+      selectNextInAncestor(false);
     }
   }
 
