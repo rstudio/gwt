@@ -311,6 +311,8 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
   // focuses its parent, which on some browsers is deferred until after Tab's
   // default action, so it would pull focus back.
   private boolean closingWithoutFocus;
+  // The open submenu, if openPopup() gave it aria-labelledby
+  private MenuBar labelledSubMenu;
 
   /**
    * Creates an empty horizontal menu bar.
@@ -882,6 +884,10 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
     shownChildMenu = null;
     popup = null;
     Roles.getMenuRole().removeAriaOwnsProperty(getElement());
+    if (labelledSubMenu != null) {
+      Roles.getMenuRole().removeAriaLabelledbyProperty(labelledSubMenu.getElement());
+      labelledSubMenu = null;
+    }
     if (parentMenu != null && parentMenu.popup != null) {
       parentMenu.popup.setPreviewingAllNativeEvents(true);
     }
@@ -1458,12 +1464,16 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
 
     // The popup is appended to the end of the body. Own it from this menu so
     // assistive technology presents it inside this menu, after its items, and
-    // name it after the item that opened it.
+    // name it after the item that opened it unless the app has named it.
     Element subMenuElement = shownChildMenu.getElement();
     if (subMenuElement.getId().isEmpty()) {
       subMenuElement.setId(DOM.createUniqueId());
     }
-    Roles.getMenuRole().setAriaLabelledbyProperty(subMenuElement, Id.of(item.getElement()));
+    if (!subMenuElement.hasAttribute("aria-label")
+        && !subMenuElement.hasAttribute("aria-labelledby")) {
+      Roles.getMenuRole().setAriaLabelledbyProperty(subMenuElement, Id.of(item.getElement()));
+      labelledSubMenu = shownChildMenu;
+    }
     Roles.getMenuRole().setAriaOwnsProperty(getElement(), Id.of(subMenuElement));
 
     popup = new MenuPopup();

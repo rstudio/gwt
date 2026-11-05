@@ -904,7 +904,26 @@ public class MenuBarTest extends WidgetTestBase {
     pressKey(sub, KeyCodes.KEY_ESCAPE);
     assertNull(bar.getPopup());
     assertFalse(bar.getElement().hasAttribute("aria-owns"));
+    assertFalse(sub.getElement().hasAttribute("aria-labelledby"));
     assertEquals("false", parent.getElement().getAttribute("aria-expanded"));
+  }
+
+  public void testOpenSubMenuKeepsLabelSetByApp() {
+    MenuBar sub = new MenuBar(true);
+    sub.addItem("first", BLANK_COMMAND);
+    sub.getElement().setAttribute("aria-label", "App name");
+    MenuBar bar = new MenuBar();
+    MenuItem parent = bar.addItem("parent", sub);
+    RootPanel.get().add(bar);
+
+    bar.selectItem(parent);
+    pressKey(bar, KeyCodes.KEY_DOWN);
+    assertTrue(sub.isAttached());
+    assertFalse(sub.getElement().hasAttribute("aria-labelledby"));
+
+    bar.closeAllChildren(false);
+    assertEquals("App name", sub.getElement().getAttribute("aria-label"));
+    assertFalse(sub.getElement().hasAttribute("aria-labelledby"));
   }
 
   public void testPresentationRole() {
