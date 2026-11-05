@@ -812,11 +812,10 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
             eatEvent(event);
             break;
           case KeyCodes.KEY_TAB: {
-            // Popups are appended to the body, so focus the root menu for the
-            // default Tab action to move relative to it. Closing nested menus
-            // can move focus, so focus the root afterwards, and synchronously:
-            // focus() is deferred on some browsers. Focusing selects an item,
-            // but Tab is leaving the menu.
+            // Popups are appended to the body, so the default Tab action must
+            // start from the root. Closing menus can move focus, so focus the
+            // root afterwards, synchronously since focus() can be deferred, and
+            // clear the item that focusing selects.
             MenuBar root = getRootMenu();
             closeAllWithoutFocus();
             root.getElement().focus();
