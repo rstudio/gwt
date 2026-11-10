@@ -24,4 +24,15 @@ public class FocusPanelTest extends SimplePanelTestBase<FocusPanel> {
   protected FocusPanel createPanel() {
     return new FocusPanel();
   }
+
+  // A child input used as an accesskey proxy is a nested interactive control
+  // (axe nested-interactive), so the container must be focusable on its own.
+  public void testFocusableHasNoChildAndOwnsAccessKey() {
+    FocusPanel panel = new FocusPanel();
+    assertEquals(0, panel.getElement().getChildCount());
+    assertEquals(0, panel.getTabIndex());
+
+    panel.setAccessKey('k');
+    assertEquals("k", panel.getElement().getPropertyString("accessKey"));
+  }
 }
