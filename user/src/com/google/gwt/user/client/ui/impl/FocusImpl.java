@@ -28,14 +28,13 @@ public class FocusImpl {
   private static FocusImpl implPanel = GWT.create(FocusImpl.class);
 
   /**
-   * This instance may not be a {@link FocusImplStandard}, because that special
-   * case is only needed for things that aren't naturally focusable on some
-   * browsers, such as DIVs. This exact class works for truly focusable widgets
-   * on those browsers.
+   * This instance may not be a {@link FocusImplSafari}, because its deferred
+   * focus and blur are only needed for focusable containers, such as DIVs. This
+   * exact class works for truly focusable widgets on those browsers.
    * 
    * The compiler will optimize out the conditional.
    */
-  private static FocusImpl implWidget = (implPanel instanceof FocusImplStandard)
+  private static FocusImpl implWidget = (implPanel instanceof FocusImplSafari)
       ? new FocusImpl() : implPanel;
 
   /**

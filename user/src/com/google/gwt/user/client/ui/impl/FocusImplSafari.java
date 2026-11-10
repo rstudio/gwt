@@ -18,11 +18,10 @@ package com.google.gwt.user.client.ui.impl;
 import com.google.gwt.dom.client.Element;
 
 /**
- * Safari-specific implementation of {@link FocusImpl} that creates a completely
- * transparent hidden element, since Safari will not keyboard focus on an input
- * element that has zero width and height.
+ * Safari-specific implementation of {@link FocusImpl} that focuses and blurs
+ * focusable containers outside of the current event callback.
  */
-public class FocusImplSafari extends FocusImplStandard {
+public class FocusImplSafari extends FocusImpl {
 
   @Override
   public native void blur(Element elem) /*-{
