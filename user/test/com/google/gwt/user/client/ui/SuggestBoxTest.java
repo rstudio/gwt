@@ -412,35 +412,53 @@ public class SuggestBoxTest extends WidgetTestBase {
     }
   }
 
+  /**
+   * A display that, like many custom ones, doesn't report whether its list
+   * is showing.
+   */
+  private static class PlainSuggestionDisplay extends SuggestionDisplay {
+    private int movesDown;
+
+    @Override
+    protected Suggestion getCurrentSelection() {
+      return null;
+    }
+
+    @Override
+    protected void hideSuggestions() {
+    }
+
+    @Override
+    protected void moveSelectionDown() {
+      movesDown++;
+    }
+
+    @Override
+    protected void moveSelectionUp() {
+    }
+
+    @Override
+    protected void showSuggestions(SuggestBox suggestBox,
+        Collection<? extends Suggestion> suggestions,
+        boolean isDisplayStringHTML, boolean isAutoSelectEnabled,
+        SuggestionCallback callback) {
+    }
+  }
+
   public void testCustomDisplayLeavesBoxPlain() {
-    SuggestionDisplay display = new SuggestionDisplay() {
-      @Override
-      protected Suggestion getCurrentSelection() {
-        return null;
-      }
-
-      @Override
-      protected void hideSuggestions() {
-      }
-
-      @Override
-      protected void moveSelectionDown() {
-      }
-
-      @Override
-      protected void moveSelectionUp() {
-      }
-
-      @Override
-      protected void showSuggestions(SuggestBox suggestBox,
-          Collection<? extends Suggestion> suggestions,
-          boolean isDisplayStringHTML, boolean isAutoSelectEnabled,
-          SuggestionCallback callback) {
-      }
-    };
-    SuggestBox box = new SuggestBox(createOracle(), new TextBox(), display);
+    SuggestBox box = new SuggestBox(createOracle(), new TextBox(),
+        new PlainSuggestionDisplay());
     assertEquals("", box.getElement().getAttribute("role"));
     assertEquals("", box.getElement().getAttribute("aria-expanded"));
+  }
+
+  public void testDownArrowMovesCustomDisplayHighlight() {
+    PlainSuggestionDisplay display = new PlainSuggestionDisplay();
+    SuggestBox box = new SuggestBox(createOracle(), new TextBox(), display);
+    RootPanel.get().add(box);
+    box.getElement().dispatchEvent(Document.get().createKeyDownEvent(
+        false, false, false, false, KeyCodes.KEY_DOWN));
+    assertEquals(1, display.movesDown);
   }
 
   public void testActiveDescendantFollowsHighlight() {

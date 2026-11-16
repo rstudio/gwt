@@ -1268,8 +1268,10 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
         switch (event.getNativeKeyCode()) {
           case KeyCodes.KEY_DOWN:
             // As in the combobox pattern, Down Arrow opens a closed list,
-            // such as one dismissed with Escape
-            if (!isSuggestionListShowing()) {
+            // such as one dismissed with Escape. Other displays may not report
+            // whether their list is showing, so they keep moving the highlight.
+            if (display instanceof DefaultSuggestionDisplay
+                && !isSuggestionListShowing()) {
               showSuggestionList();
               break;
             }
