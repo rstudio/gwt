@@ -19,6 +19,7 @@ import com.google.gwt.aria.client.AutocompleteValue;
 import com.google.gwt.aria.client.ComboboxRole;
 import com.google.gwt.aria.client.ExpandedValue;
 import com.google.gwt.aria.client.Id;
+import com.google.gwt.aria.client.ListboxRole;
 import com.google.gwt.aria.client.Roles;
 import com.google.gwt.aria.client.SelectedValue;
 import com.google.gwt.core.client.Scheduler.ScheduledCommand;
@@ -53,6 +54,7 @@ import com.google.gwt.user.client.ui.SuggestOracle.Request;
 import com.google.gwt.user.client.ui.SuggestOracle.Response;
 import com.google.gwt.user.client.ui.SuggestOracle.Suggestion;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -568,29 +570,34 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
      * the list after the box itself would give it the box's typed text instead.
      */
     private void nameListAfter(Element box) {
+      ListboxRole role = Roles.getListboxRole();
       Element list = suggestionMenu.getElement();
-      list.removeAttribute("aria-label");
-      list.removeAttribute("aria-labelledby");
+      role.removeAriaLabelProperty(list);
+      role.removeAriaLabelledbyProperty(list);
 
-      String labelledBy = box.getAttribute("aria-labelledby");
+      List<Id> labelIds = new ArrayList<Id>();
+      for (String id : box.getAttribute("aria-labelledby").trim().split("\\s+")) {
+        if (!id.isEmpty() && !id.equals(box.getId())) {
+          labelIds.add(Id.of(id));
+        }
+      }
       String label = box.getAttribute("aria-label");
-      if (!labelledBy.isEmpty()) {
-        list.setAttribute("aria-labelledby", labelledBy);
-      } else if (!label.isEmpty()) {
-        list.setAttribute("aria-label", label);
-      } else {
+      if (labelIds.isEmpty() && !label.isEmpty()) {
+        role.setAriaLabelProperty(list, label);
+        return;
+      }
+      if (labelIds.isEmpty()) {
         NodeList<Element> labels = getLabels(box);
-        StringBuilder ids = new StringBuilder();
         for (int i = 0; labels != null && i < labels.getLength(); i++) {
           Element labelElement = labels.getItem(i);
           if (labelElement.getId().isEmpty()) {
             labelElement.setId(DOM.createUniqueId());
           }
-          ids.append(i == 0 ? "" : " ").append(labelElement.getId());
+          labelIds.add(Id.of(labelElement));
         }
-        if (ids.length() > 0) {
-          list.setAttribute("aria-labelledby", ids.toString());
-        }
+      }
+      if (!labelIds.isEmpty()) {
+        role.setAriaLabelledbyProperty(list, labelIds.toArray(new Id[0]));
       }
     }
 

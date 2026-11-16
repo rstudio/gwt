@@ -539,6 +539,19 @@ public class SuggestBoxTest extends WidgetTestBase {
     box.showSuggestionList();
     assertEquals("someLabel", list.getAttribute("aria-labelledby"));
     assertEquals("", list.getAttribute("aria-label"));
+
+    // The box's own id would name the list after the typed text
+    display.hideSuggestions();
+    input.setId("suggestBoxInput");
+    input.setAttribute("aria-labelledby", "someLabel suggestBoxInput");
+    box.showSuggestionList();
+    assertEquals("someLabel", list.getAttribute("aria-labelledby"));
+
+    display.hideSuggestions();
+    input.setAttribute("aria-labelledby", "suggestBoxInput");
+    box.showSuggestionList();
+    assertEquals("", list.getAttribute("aria-labelledby"));
+    assertEquals("Packages", list.getAttribute("aria-label"));
   }
 
   public void testListNamedAfterLabelElement() {
