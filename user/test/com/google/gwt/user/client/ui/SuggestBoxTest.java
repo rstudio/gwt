@@ -560,9 +560,6 @@ public class SuggestBoxTest extends WidgetTestBase {
     assertTrue(b.getParent() == box);
   }
 
-  /**
-   * See https://code.google.com/p/google-web-toolkit/issues/detail?id=3533
-   */
   public void testEscapeClosesList() {
     TestSuggestionDisplay display = new TestSuggestionDisplay();
     SuggestBox box = createDefaultsBox(display);
@@ -623,6 +620,9 @@ public class SuggestBoxTest extends WidgetTestBase {
     return event.defaultPrevented;
   }-*/;
 
+  /**
+   * See https://code.google.com/p/google-web-toolkit/issues/detail?id=3533
+   */
   public void testKeyDownEvent() {
     final int[] eventFireCount = {0};
     SuggestBox box = new SuggestBox();
