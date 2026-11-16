@@ -275,9 +275,11 @@ public class MenuBarTest extends WidgetTestBase {
     menu.itemOver(item1, true);
     assertFocused(focusOwner.getElement());
 
-    // Cause item1 to hide
+    // Cause item1 to hide. Unlike upstream GWT, the fork refocuses the parent
+    // menu whenever a submenu closes other than by autoHide (89fc3b886), even
+    // with focus on hover disabled.
     menu.itemOver(item0, true);
-    assertFocused(focusOwner.getElement());
+    assertFocused(menu.getElement());
   }
 
   private static void assertFocused(Element element) {
