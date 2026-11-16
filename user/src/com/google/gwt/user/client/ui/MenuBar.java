@@ -967,6 +967,10 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
 
       Roles.getMenubarRole().setAriaActivedescendantProperty(getElement(),
           Id.of(item.getElement()));
+    } else {
+      // Otherwise it would name an item that's no longer highlighted, or
+      // that clearItems() has removed
+      Roles.getMenubarRole().removeAriaActivedescendantProperty(getElement());
     }
 
     selectedItem = item;
@@ -1248,6 +1252,7 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
   private void addItemElement(int beforeIndex, Element tdElem) {
     if (vertical) {
       Element tr = DOM.createTR();
+      Roles.getPresentationRole().set(tr);
       DOM.insertChild(body, tr, beforeIndex);
       DOM.appendChild(tr, tdElem);
     } else {
@@ -1304,14 +1309,19 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
     this.subMenuIcon = subMenuIcon;
 
     Element table = DOM.createTable();
-    // aria role to indicate it is a plain layout table
+    // aria role to indicate it is a plain layout table. Its rows and body
+    // get the role too: Chrome makes an item with a role that must be inside
+    // a particular parent, such as option in a listbox, generic and nameless
+    // unless every element between them says so, not just the table.
     Roles.getPresentationRole().set(table);
-    
+
     body = DOM.createTBody();
+    Roles.getPresentationRole().set(body);
     DOM.appendChild(table, body);
 
     if (!vertical) {
       Element tr = DOM.createTR();
+      Roles.getPresentationRole().set(tr);
       DOM.appendChild(body, tr);
     }
 

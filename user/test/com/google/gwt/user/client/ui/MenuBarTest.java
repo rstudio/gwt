@@ -254,13 +254,14 @@ public class MenuBarTest extends WidgetTestBase {
   }
 
   public void testSetFocusOnHoverDisabled() {
+    delayTestFinish(1000);
     TextBox focusOwner = new TextBox();
     RootPanel.get().add(focusOwner);
     focusOwner.setFocus(true);
     assertFocused(focusOwner.getElement());
 
     // Create a menu bar with children.
-    MenuBar menu = new MenuBar();
+    final MenuBar menu = new MenuBar();
     menu.setAutoOpen(true);
     menu.setFocusOnHoverEnabled(false);
     MenuItem item0 = menu.addItem("item0", BLANK_COMMAND);
@@ -275,9 +276,18 @@ public class MenuBarTest extends WidgetTestBase {
     menu.itemOver(item1, true);
     assertFocused(focusOwner.getElement());
 
-    // Cause item1 to hide
+    // Cause item1 to hide. Unlike upstream GWT, the fork refocuses the parent
+    // menu whenever a submenu closes other than by autoHide (89fc3b886), even
+    // with focus on hover disabled. Checked later, since the safari
+    // permutation defers focus().
     menu.itemOver(item0, true);
-    assertFocused(focusOwner.getElement());
+    Scheduler.get().scheduleDeferred(new Command() {
+      @Override
+      public void execute() {
+        assertFocused(menu.getElement());
+        finishTest();
+      }
+    });
   }
 
   private static void assertFocused(Element element) {
@@ -620,8 +630,11 @@ public class MenuBarTest extends WidgetTestBase {
     assertEquals(item1, bar.getSelectedItem());
     bar.selectItem(item3);
     assertEquals(item3, bar.getSelectedItem());
+    assertEquals(item3.getElement().getId(),
+        bar.getElement().getAttribute("aria-activedescendant"));
     bar.selectItem(null);
     assertNull(bar.getSelectedItem());
+    assertEquals("", bar.getElement().getAttribute("aria-activedescendant"));
   }
 
   public void testTabKey() {
