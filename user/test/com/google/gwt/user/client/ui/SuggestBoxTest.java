@@ -383,6 +383,143 @@ public class SuggestBoxTest extends WidgetTestBase {
     assertEquals("B", display.getCurrentSelection().getReplacementString());
   }
 
+  public void testComboboxRoles() {
+    TestSuggestionDisplay display = new TestSuggestionDisplay();
+    SuggestBox box = createDefaultsBox(display);
+    Element input = box.getElement();
+    assertEquals("combobox", input.getAttribute("role"));
+    assertEquals("list", input.getAttribute("aria-autocomplete"));
+    assertEquals("false", input.getAttribute("aria-expanded"));
+    assertEquals("", input.getAttribute("aria-controls"));
+
+    box.showSuggestionList();
+    Element list = display.getSuggestionMenu().getElement();
+    assertEquals("listbox", list.getAttribute("role"));
+    assertFalse(list.getId().isEmpty());
+    assertEquals("true", input.getAttribute("aria-expanded"));
+    assertEquals(list.getId(), input.getAttribute("aria-controls"));
+    for (MenuItem item : display.getSuggestionMenu().getItems()) {
+      assertEquals("option", item.getElement().getAttribute("role"));
+      assertEquals("false", item.getElement().getAttribute("aria-selected"));
+    }
+  }
+
+  public void testActiveDescendantFollowsHighlight() {
+    TestSuggestionDisplay display = new TestSuggestionDisplay();
+    SuggestBox box = createDefaultsBox(display);
+    Element input = box.getElement();
+    box.showSuggestionList();
+    MenuBar menu = display.getSuggestionMenu();
+    Element first = menu.getItems().get(0).getElement();
+    Element second = menu.getItems().get(1).getElement();
+    assertEquals("", input.getAttribute("aria-activedescendant"));
+
+    display.moveSelectionDown();
+    assertEquals(first.getId(), input.getAttribute("aria-activedescendant"));
+    assertEquals("true", first.getAttribute("aria-selected"));
+
+    display.moveSelectionDown();
+    assertEquals(second.getId(), input.getAttribute("aria-activedescendant"));
+    assertEquals("false", first.getAttribute("aria-selected"));
+    assertEquals("true", second.getAttribute("aria-selected"));
+
+    // Hovering moves the highlight that Enter accepts, so it moves this too
+    menu.itemOver(menu.getItems().get(0), true);
+    assertEquals(first.getId(), input.getAttribute("aria-activedescendant"));
+
+    // Leaving the item clears the highlight
+    menu.itemOver(null, false);
+    assertEquals("", input.getAttribute("aria-activedescendant"));
+  }
+
+  public void testAutoSelectSetsActiveDescendant() {
+    TestSuggestionDisplay display = new TestSuggestionDisplay();
+    SuggestBox box = createDefaultsBox(display);
+    box.setAutoSelectEnabled(true);
+    box.showSuggestionList();
+    Element first = display.getSuggestionMenu().getItems().get(0).getElement();
+    assertEquals(first.getId(),
+        box.getElement().getAttribute("aria-activedescendant"));
+  }
+
+  public void testClosingClearsComboboxState() {
+    TestSuggestionDisplay display = new TestSuggestionDisplay();
+    SuggestBox box = createDefaultsBox(display);
+    Element input = box.getElement();
+
+    box.showSuggestionList();
+    display.moveSelectionDown();
+    display.hideSuggestions();
+    assertComboboxClosed(input);
+
+    // An autoHide click outside closes the popup without hideSuggestions()
+    box.showSuggestionList();
+    display.moveSelectionDown();
+    display.getPopupPanel().hide(true);
+    assertComboboxClosed(input);
+
+    // Selecting a suggestion closes the list
+    box.showSuggestionList();
+    display.moveSelectionDown();
+    display.getSuggestionMenu().getItems().get(0).getScheduledCommand()
+        .execute();
+    assertComboboxClosed(input);
+  }
+
+  public void testSharedDisplayMovesStateToNewBox() {
+    MultiWordSuggestOracle oracle = new MultiWordSuggestOracle();
+    oracle.setDefaultSuggestionsFromText(Arrays.asList("A", "B"));
+    TestSuggestionDisplay display = new TestSuggestionDisplay();
+    SuggestBox box1 = new SuggestBox(oracle, new TextBox(), display);
+    SuggestBox box2 = new SuggestBox(oracle, new TextBox(), display);
+    RootPanel.get().add(box1);
+    RootPanel.get().add(box2);
+
+    box1.showSuggestionList();
+    display.moveSelectionDown();
+    box2.showSuggestionList();
+    assertComboboxClosed(box1.getElement());
+    assertEquals("true", box2.getElement().getAttribute("aria-expanded"));
+  }
+
+  public void testListNamedAfterBox() {
+    TestSuggestionDisplay display = new TestSuggestionDisplay();
+    SuggestBox box = createDefaultsBox(display);
+    Element input = box.getElement();
+    Element list = display.getSuggestionMenu().getElement();
+
+    input.setAttribute("aria-label", "Packages");
+    box.showSuggestionList();
+    assertEquals("Packages", list.getAttribute("aria-label"));
+    assertEquals("", list.getAttribute("aria-labelledby"));
+
+    // aria-labelledby wins over aria-label, as it does for the box
+    display.hideSuggestions();
+    input.setAttribute("aria-labelledby", "someLabel");
+    box.showSuggestionList();
+    assertEquals("someLabel", list.getAttribute("aria-labelledby"));
+    assertEquals("", list.getAttribute("aria-label"));
+  }
+
+  public void testListNamedAfterLabelElement() {
+    TestSuggestionDisplay display = new TestSuggestionDisplay();
+    SuggestBox box = createDefaultsBox(display);
+    Element input = box.getElement();
+    input.setId("suggestBoxInput");
+    Element label = Document.get().createLabelElement();
+    label.setAttribute("for", "suggestBoxInput");
+    label.setInnerText("Packages");
+    Document.get().getBody().appendChild(label);
+    try {
+      box.showSuggestionList();
+      assertFalse(label.getId().isEmpty());
+      assertEquals(label.getId(), display.getSuggestionMenu().getElement()
+          .getAttribute("aria-labelledby"));
+    } finally {
+      label.removeFromParent();
+    }
+  }
+
   public void testShowFirst() {
     SuggestBox box = createSuggestBox();
     assertTrue(box.isAutoSelectEnabled());
@@ -454,6 +591,25 @@ public class SuggestBoxTest extends WidgetTestBase {
   protected SuggestBox createSuggestBox() {
     MultiWordSuggestOracle oracle = createOracle();
     return new SuggestBox(oracle, new TextBox(), new TestSuggestionDisplay());
+  }
+
+  /**
+   * An attached box whose list shows "A" and "B" when empty, with nothing
+   * highlighted until the arrow keys move.
+   */
+  private SuggestBox createDefaultsBox(TestSuggestionDisplay display) {
+    MultiWordSuggestOracle oracle = new MultiWordSuggestOracle();
+    oracle.setDefaultSuggestionsFromText(Arrays.asList("A", "B"));
+    SuggestBox box = new SuggestBox(oracle, new TextBox(), display);
+    box.setAutoSelectEnabled(false);
+    RootPanel.get().add(box);
+    return box;
+  }
+
+  private static void assertComboboxClosed(Element input) {
+    assertEquals("false", input.getAttribute("aria-expanded"));
+    assertEquals("", input.getAttribute("aria-controls"));
+    assertEquals("", input.getAttribute("aria-activedescendant"));
   }
 
   private MultiWordSuggestOracle createOracle() {

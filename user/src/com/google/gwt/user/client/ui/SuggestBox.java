@@ -15,9 +15,16 @@
  */
 package com.google.gwt.user.client.ui;
 
+import com.google.gwt.aria.client.AutocompleteValue;
+import com.google.gwt.aria.client.ComboboxRole;
+import com.google.gwt.aria.client.ExpandedValue;
+import com.google.gwt.aria.client.Id;
+import com.google.gwt.aria.client.Roles;
+import com.google.gwt.aria.client.SelectedValue;
 import com.google.gwt.core.client.Scheduler.ScheduledCommand;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
+import com.google.gwt.dom.client.NodeList;
 import com.google.gwt.editor.client.IsEditor;
 import com.google.gwt.editor.client.LeafValueEditor;
 import com.google.gwt.editor.client.adapters.TakesValueEditor;
@@ -29,12 +36,15 @@ import com.google.gwt.event.dom.client.KeyPressEvent;
 import com.google.gwt.event.dom.client.KeyPressHandler;
 import com.google.gwt.event.dom.client.KeyUpEvent;
 import com.google.gwt.event.dom.client.KeyUpHandler;
+import com.google.gwt.event.logical.shared.CloseEvent;
+import com.google.gwt.event.logical.shared.CloseHandler;
 import com.google.gwt.event.logical.shared.HasSelectionHandlers;
 import com.google.gwt.event.logical.shared.SelectionEvent;
 import com.google.gwt.event.logical.shared.SelectionHandler;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.logical.shared.ValueChangeHandler;
 import com.google.gwt.event.shared.HandlerRegistration;
+import com.google.gwt.user.client.DOM;
 import com.google.gwt.user.client.ui.PopupPanel.AnimationType;
 import com.google.gwt.user.client.ui.SuggestOracle.Callback;
 import com.google.gwt.user.client.ui.SuggestOracle.Request;
@@ -314,6 +324,14 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
       suggestionMenu = new SuggestionMenu(true);
       suggestionPopup = createPopup();
       suggestionPopup.setWidget(decorateSuggestionList(suggestionMenu));
+      // Covers every way the popup closes, including autoHide
+      suggestionPopup.addCloseHandler(new CloseHandler<PopupPanel>() {
+        public void onClose(CloseEvent<PopupPanel> event) {
+          if (lastSuggestBox != null) {
+            setListShown(lastSuggestBox.getElement(), false);
+          }
+        }
+      });
     }
 
     @Override
@@ -522,7 +540,61 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
       // Show the popup under the TextBox.
       suggestionPopup.showRelativeTo(positionRelativeTo != null
           ? positionRelativeTo : suggestBox);
+      setListShown(suggestBox.getElement(), true);
     }
+
+    /**
+     * Focus stays in the suggest box while the list is open, so the box, not
+     * the list, tells assistive technology whether the list is open and which
+     * suggestion is highlighted.
+     */
+    private void setListShown(Element box, boolean shown) {
+      ComboboxRole role = Roles.getComboboxRole();
+      role.setAriaExpandedState(box, ExpandedValue.of(shown));
+      if (shown) {
+        nameListAfter(box);
+        role.setAriaControlsProperty(box, Id.of(suggestionMenu.getElement()));
+        suggestionMenu.setComboBox(box);
+      } else {
+        role.removeAriaControlsProperty(box);
+        suggestionMenu.setComboBox(null);
+      }
+    }
+
+    /**
+     * A listbox needs an accessible name, and the box's label suits it. Naming
+     * the list after the box itself would give it the box's typed text instead.
+     */
+    private void nameListAfter(Element box) {
+      Element list = suggestionMenu.getElement();
+      list.removeAttribute("aria-label");
+      list.removeAttribute("aria-labelledby");
+
+      String labelledBy = box.getAttribute("aria-labelledby");
+      String label = box.getAttribute("aria-label");
+      if (!labelledBy.isEmpty()) {
+        list.setAttribute("aria-labelledby", labelledBy);
+      } else if (!label.isEmpty()) {
+        list.setAttribute("aria-label", label);
+      } else {
+        NodeList<Element> labels = getLabels(box);
+        StringBuilder ids = new StringBuilder();
+        for (int i = 0; labels != null && i < labels.getLength(); i++) {
+          Element labelElement = labels.getItem(i);
+          if (labelElement.getId().isEmpty()) {
+            labelElement.setId(DOM.createUniqueId());
+          }
+          ids.append(i == 0 ? "" : " ").append(labelElement.getId());
+        }
+        if (ids.length() > 0) {
+          list.setAttribute("aria-labelledby", ids.toString());
+        }
+      }
+    }
+
+    private static native NodeList<Element> getLabels(Element box) /*-{
+      return box.labels || null;
+    }-*/;
 
     @Override
     boolean isAnimationEnabledImpl() {
@@ -553,12 +625,51 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
    */
   private static class SuggestionMenu extends MenuBar {
 
+    /**
+     * The suggest box this list is showing for, or null while it's hidden. It
+     * keeps focus, so it carries aria-activedescendant for the highlight.
+     */
+    private Element comboBox;
+
     public SuggestionMenu(boolean vertical) {
       super(vertical);
       // Make sure that CSS styles specified for the default Menu classes
       // do not affect this menu
       setStyleName("");
       setFocusOnHoverEnabled(false);
+      Roles.getListboxRole().set(getElement());
+      getElement().setId(DOM.createUniqueId());
+    }
+
+    /**
+     * Keyboard, mouse hover and clearing the list all change the highlight
+     * through here.
+     */
+    @Override
+    public void selectItem(MenuItem item) {
+      super.selectItem(item);
+      updateActiveDescendant();
+    }
+
+    void setComboBox(Element box) {
+      if (comboBox != null) {
+        Roles.getComboboxRole().removeAriaActivedescendantProperty(comboBox);
+      }
+      comboBox = box;
+      updateActiveDescendant();
+    }
+
+    private void updateActiveDescendant() {
+      if (comboBox == null) {
+        return;
+      }
+      MenuItem item = getSelectedItem();
+      if (item == null) {
+        Roles.getComboboxRole().removeAriaActivedescendantProperty(comboBox);
+      } else {
+        Roles.getComboboxRole().setAriaActivedescendantProperty(comboBox,
+            Id.of(item.getElement()));
+      }
     }
 
     public int getNumItems() {
@@ -616,6 +727,14 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
       getElement().getStyle().setProperty("whiteSpace", "nowrap");
       setStyleName(STYLENAME_DEFAULT);
       setSuggestion(suggestion);
+      Roles.getOptionRole().set(getElement());
+    }
+
+    @Override
+    protected void setSelectionStyle(boolean selected) {
+      super.setSelectionStyle(selected);
+      Roles.getOptionRole().setAriaSelectedState(getElement(),
+          SelectedValue.of(selected));
     }
 
     public Suggestion getSuggestion() {
@@ -726,6 +845,13 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
     this.box = box;
     this.display = suggestDisplay;
     initWidget(box);
+
+    // The combobox pattern; DefaultSuggestionDisplay keeps the box's expanded
+    // and highlight state current as its list opens, changes and closes.
+    ComboboxRole role = Roles.getComboboxRole();
+    role.set(box.getElement());
+    role.setAriaAutocompleteProperty(box.getElement(), AutocompleteValue.LIST);
+    role.setAriaExpandedState(box.getElement(), ExpandedValue.FALSE);
 
     addEventsToTextBox();
 
