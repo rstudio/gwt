@@ -777,13 +777,14 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
   private boolean selectsFirstItem = true;
   private SuggestOracle oracle;
   private String currentText;
+  private boolean ignorePendingSuggestions;
   private LeafValueEditor<String> editor;
   private final SuggestionDisplay display;
   private final ValueBoxBase<String> box;
   private final Callback callback = new Callback() {
     public void onSuggestionsReady(Request request, Response response) {
-      // If disabled while request was in-flight, drop it
-      if (!isEnabled()) {
+      // If disabled or dismissed with Escape while request was in-flight, drop it
+      if (!isEnabled() || ignorePendingSuggestions) {
         return;
       }
       display.setMoreSuggestions(response.hasMoreSuggestions(),
@@ -1229,6 +1230,7 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
   }
 
   void showSuggestions(String query) {
+    ignorePendingSuggestions = false;
     if (query.length() == 0) {
       oracle.requestDefaultSuggestions(new Request(null, limit), callback);
     } else {
@@ -1254,6 +1256,9 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
             }
             break;
           case KeyCodes.KEY_ESCAPE:
+            // A response still on its way would reopen the list. The next
+            // request, from typing or showSuggestionList(), allows them again.
+            ignorePendingSuggestions = true;
             // Prevented, so that handlers that run later, such as those on
             // ancestors, can tell that this Escape closed the list
             if (isSuggestionListShowing()) {

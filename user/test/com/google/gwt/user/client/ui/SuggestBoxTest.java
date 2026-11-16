@@ -580,6 +580,26 @@ public class SuggestBoxTest extends WidgetTestBase {
     assertFalse(prevented[0]);
   }
 
+  public void testEscapeDropsPendingSuggestions() {
+    TestOracle oracle = new TestOracle();
+    TestSuggestionDisplay display = new TestSuggestionDisplay();
+    SuggestBox box = new SuggestBox(oracle, new TextBox(), display);
+    RootPanel.get().add(box);
+    Collection<MultiWordSuggestion> suggestions = new ArrayList<MultiWordSuggestion>();
+    suggestions.add(new MultiWordSuggestion("one", "one"));
+
+    box.setText("o");
+    box.showSuggestionList();
+    box.getElement().dispatchEvent(createEscapeKeyDown());
+    oracle.callback.onSuggestionsReady(oracle.request, new Response(suggestions));
+    assertFalse(display.isSuggestionListShowing());
+
+    // A new request shows its response
+    box.showSuggestionList();
+    oracle.callback.onSuggestionsReady(oracle.request, new Response(suggestions));
+    assertTrue(display.isSuggestionListShowing());
+  }
+
   private static NativeEvent createEscapeKeyDown() {
     return Document.get().createKeyDownEvent(false, false, false, false,
         KeyCodes.KEY_ESCAPE);
