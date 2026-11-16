@@ -777,14 +777,14 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
   private boolean selectsFirstItem = true;
   private SuggestOracle oracle;
   private String currentText;
-  private boolean ignorePendingSuggestions;
+  private int escapeCount;
   private LeafValueEditor<String> editor;
   private final SuggestionDisplay display;
   private final ValueBoxBase<String> box;
   private final Callback callback = new Callback() {
     public void onSuggestionsReady(Request request, Response response) {
-      // If disabled or dismissed with Escape while request was in-flight, drop it
-      if (!isEnabled() || ignorePendingSuggestions) {
+      // If disabled while request was in-flight, drop it
+      if (!isEnabled()) {
         return;
       }
       display.setMoreSuggestions(response.hasMoreSuggestions(),
@@ -1230,11 +1230,19 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
   }
 
   void showSuggestions(String query) {
-    ignorePendingSuggestions = false;
+    // A response that arrives after Escape would reopen the list
+    final int escapesAtRequest = escapeCount;
+    Callback requestCallback = new Callback() {
+      public void onSuggestionsReady(Request request, Response response) {
+        if (escapeCount == escapesAtRequest) {
+          callback.onSuggestionsReady(request, response);
+        }
+      }
+    };
     if (query.length() == 0) {
-      oracle.requestDefaultSuggestions(new Request(null, limit), callback);
+      oracle.requestDefaultSuggestions(new Request(null, limit), requestCallback);
     } else {
-      oracle.requestSuggestions(new Request(query, limit), callback);
+      oracle.requestSuggestions(new Request(query, limit), requestCallback);
     }
   }
 
@@ -1256,9 +1264,7 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
             }
             break;
           case KeyCodes.KEY_ESCAPE:
-            // A response still on its way would reopen the list. The next
-            // request, from typing or showSuggestionList(), allows them again.
-            ignorePendingSuggestions = true;
+            escapeCount++;
             // Prevented, so that handlers that run later, such as those on
             // ancestors, can tell that this Escape closed the list
             if (isSuggestionListShowing()) {

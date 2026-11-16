@@ -585,19 +585,26 @@ public class SuggestBoxTest extends WidgetTestBase {
     TestSuggestionDisplay display = new TestSuggestionDisplay();
     SuggestBox box = new SuggestBox(oracle, new TextBox(), display);
     RootPanel.get().add(box);
-    Collection<MultiWordSuggestion> suggestions = new ArrayList<MultiWordSuggestion>();
-    suggestions.add(new MultiWordSuggestion("one", "one"));
+    Collection<MultiWordSuggestion> before = new ArrayList<MultiWordSuggestion>();
+    before.add(new MultiWordSuggestion("one", "one"));
+    Collection<MultiWordSuggestion> after = new ArrayList<MultiWordSuggestion>();
+    after.add(new MultiWordSuggestion("two", "two"));
 
     box.setText("o");
     box.showSuggestionList();
+    SuggestOracle.Request requestBefore = oracle.request;
+    SuggestOracle.Callback callbackBefore = oracle.callback;
     box.getElement().dispatchEvent(createEscapeKeyDown());
-    oracle.callback.onSuggestionsReady(oracle.request, new Response(suggestions));
+    callbackBefore.onSuggestionsReady(requestBefore, new Response(before));
     assertFalse(display.isSuggestionListShowing());
 
-    // A new request shows its response
+    // A request made after Escape shows its response, and one made before
+    // still can't replace it
     box.showSuggestionList();
-    oracle.callback.onSuggestionsReady(oracle.request, new Response(suggestions));
+    oracle.callback.onSuggestionsReady(oracle.request, new Response(after));
     assertTrue(display.isSuggestionListShowing());
+    callbackBefore.onSuggestionsReady(requestBefore, new Response(before));
+    assertEquals("two", display.getSuggestion(0).getReplacementString());
   }
 
   private static NativeEvent createEscapeKeyDown() {
