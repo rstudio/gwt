@@ -18,6 +18,7 @@ package com.google.gwt.user.client.ui;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.NativeEvent;
+import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.event.dom.client.KeyDownEvent;
 import com.google.gwt.event.dom.client.KeyDownHandler;
 import com.google.gwt.event.dom.client.KeyUpEvent;
@@ -555,6 +556,39 @@ public class SuggestBoxTest extends WidgetTestBase {
   /**
    * See https://code.google.com/p/google-web-toolkit/issues/detail?id=3533
    */
+  public void testEscapeClosesList() {
+    TestSuggestionDisplay display = new TestSuggestionDisplay();
+    SuggestBox box = createDefaultsBox(display);
+    final boolean[] prevented = {false};
+    // On the text box, so that it runs after SuggestBox's own handler there
+    box.getValueBox().addKeyDownHandler(new KeyDownHandler() {
+      @Override
+      public void onKeyDown(KeyDownEvent event) {
+        prevented[0] = isDefaultPrevented(event.getNativeEvent());
+      }
+    });
+
+    box.showSuggestionList();
+    display.moveSelectionDown();
+    box.getElement().dispatchEvent(createEscapeKeyDown());
+    assertFalse(display.isSuggestionListShowing());
+    assertComboboxClosed(box.getElement());
+    assertTrue(prevented[0]);
+
+    // With the list closed, Escape is left for others, such as a dialog
+    box.getElement().dispatchEvent(createEscapeKeyDown());
+    assertFalse(prevented[0]);
+  }
+
+  private static NativeEvent createEscapeKeyDown() {
+    return Document.get().createKeyDownEvent(false, false, false, false,
+        KeyCodes.KEY_ESCAPE);
+  }
+
+  private static native boolean isDefaultPrevented(NativeEvent event) /*-{
+    return event.defaultPrevented;
+  }-*/;
+
   public void testKeyDownEvent() {
     final int[] eventFireCount = {0};
     SuggestBox box = new SuggestBox();

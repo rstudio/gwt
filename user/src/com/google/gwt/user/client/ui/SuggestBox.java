@@ -1253,6 +1253,14 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
               event.preventDefault();
             }
             break;
+          case KeyCodes.KEY_ESCAPE:
+            // Prevented, so that handlers that run later, such as those on
+            // ancestors, can tell that this Escape closed the list
+            if (isSuggestionListShowing()) {
+              display.hideSuggestions();
+              event.preventDefault();
+            }
+            break;
           case KeyCodes.KEY_ENTER:
           case KeyCodes.KEY_TAB:
             Suggestion suggestion = display.getCurrentSelection();
