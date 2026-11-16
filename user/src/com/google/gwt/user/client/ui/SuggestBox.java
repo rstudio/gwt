@@ -28,6 +28,8 @@ import com.google.gwt.dom.client.NodeList;
 import com.google.gwt.editor.client.IsEditor;
 import com.google.gwt.editor.client.LeafValueEditor;
 import com.google.gwt.editor.client.adapters.TakesValueEditor;
+import com.google.gwt.event.dom.client.BlurEvent;
+import com.google.gwt.event.dom.client.BlurHandler;
 import com.google.gwt.event.dom.client.HasAllKeyHandlers;
 import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.event.dom.client.KeyDownEvent;
@@ -777,7 +779,7 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
   private boolean selectsFirstItem = true;
   private SuggestOracle oracle;
   private String currentText;
-  private int escapeCount;
+  private int requestGeneration;
   private LeafValueEditor<String> editor;
   private final SuggestionDisplay display;
   private final ValueBoxBase<String> box;
@@ -1230,11 +1232,12 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
   }
 
   void showSuggestions(String query) {
-    // A response that arrives after Escape would reopen the list
-    final int escapesAtRequest = escapeCount;
+    // Only the latest request's response may show, and only until the list
+    // is dismissed or the box loses focus
+    final int generation = ++requestGeneration;
     Callback requestCallback = new Callback() {
       public void onSuggestionsReady(Request request, Response response) {
-        if (escapeCount == escapesAtRequest) {
+        if (generation == requestGeneration) {
           callback.onSuggestionsReady(request, response);
         }
       }
@@ -1264,7 +1267,7 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
             }
             break;
           case KeyCodes.KEY_ESCAPE:
-            escapeCount++;
+            dropPendingSuggestions();
             // Prevented, so that handlers that run later, such as those on
             // ancestors, can tell that this Escape closed the list
             if (isSuggestionListShowing()) {
@@ -1274,6 +1277,7 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
             break;
           case KeyCodes.KEY_ENTER:
           case KeyCodes.KEY_TAB:
+            dropPendingSuggestions();
             Suggestion suggestion = display.getCurrentSelection();
             if (suggestion == null) {
               display.hideSuggestions();
@@ -1298,6 +1302,19 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
     box.addKeyDownHandler(events);
     box.addKeyUpHandler(events);
     box.addValueChangeHandler(events);
+    box.addBlurHandler(new BlurHandler() {
+      public void onBlur(BlurEvent event) {
+        dropPendingSuggestions();
+      }
+    });
+  }
+
+  /**
+   * A response to a request already made would reopen a list that the user
+   * dismissed, or open one on a box they left.
+   */
+  private void dropPendingSuggestions() {
+    requestGeneration++;
   }
 
   private void fireSuggestionEvent(Suggestion selectedSuggestion) {
@@ -1324,6 +1341,7 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
     assert curSuggestion != null : "suggestion cannot be null";
     currentText = curSuggestion.getReplacementString();
     setText(currentText);
+    dropPendingSuggestions();
     display.hideSuggestions();
     fireSuggestionEvent(curSuggestion);
   }

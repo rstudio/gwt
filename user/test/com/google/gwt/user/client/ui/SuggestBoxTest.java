@@ -611,6 +611,62 @@ public class SuggestBoxTest extends WidgetTestBase {
     assertEquals("two", display.getSuggestion(0).getReplacementString());
   }
 
+  public void testTabDropsPendingSuggestions() {
+    TestOracle oracle = new TestOracle();
+    TestSuggestionDisplay display = new TestSuggestionDisplay();
+    SuggestBox box = createPendingBox(oracle, display);
+    box.getElement().dispatchEvent(Document.get().createKeyDownEvent(
+        false, false, false, false, KeyCodes.KEY_TAB));
+    respond(oracle, "one");
+    assertFalse(display.isSuggestionListShowing());
+  }
+
+  public void testBlurDropsPendingSuggestions() {
+    TestOracle oracle = new TestOracle();
+    TestSuggestionDisplay display = new TestSuggestionDisplay();
+    SuggestBox box = createPendingBox(oracle, display);
+    box.getElement().dispatchEvent(Document.get().createBlurEvent());
+    respond(oracle, "one");
+    assertFalse(display.isSuggestionListShowing());
+  }
+
+  public void testOlderResponseCantReplaceNewer() {
+    TestOracle oracle = new TestOracle();
+    TestSuggestionDisplay display = new TestSuggestionDisplay();
+    SuggestBox box = createPendingBox(oracle, display);
+    SuggestOracle.Request olderRequest = oracle.request;
+    SuggestOracle.Callback olderCallback = oracle.callback;
+
+    box.setText("on");
+    box.showSuggestionList();
+    respond(oracle, "one");
+    olderCallback.onSuggestionsReady(olderRequest, createResponse("other"));
+    assertEquals("one", display.getSuggestion(0).getReplacementString());
+  }
+
+  /**
+   * An attached box with a request for "o" still waiting on the oracle.
+   */
+  private static SuggestBox createPendingBox(TestOracle oracle,
+      TestSuggestionDisplay display) {
+    SuggestBox box = new SuggestBox(oracle, new TextBox(), display);
+    RootPanel.get().add(box);
+    box.setText("o");
+    box.showSuggestionList();
+    return box;
+  }
+
+  private static void respond(TestOracle oracle, String suggestion) {
+    oracle.callback.onSuggestionsReady(oracle.request,
+        createResponse(suggestion));
+  }
+
+  private static Response createResponse(String suggestion) {
+    Collection<MultiWordSuggestion> suggestions = new ArrayList<MultiWordSuggestion>();
+    suggestions.add(new MultiWordSuggestion(suggestion, suggestion));
+    return new Response(suggestions);
+  }
+
   private static NativeEvent createEscapeKeyDown() {
     return Document.get().createKeyDownEvent(false, false, false, false,
         KeyCodes.KEY_ESCAPE);
