@@ -437,6 +437,7 @@ public class SuggestBoxTest extends WidgetTestBase {
     // Leaving the item clears the highlight
     menu.itemOver(null, false);
     assertEquals("", input.getAttribute("aria-activedescendant"));
+    assertEquals("", menu.getElement().getAttribute("aria-activedescendant"));
   }
 
   public void testAutoSelectSetsActiveDescendant() {

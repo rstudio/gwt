@@ -967,6 +967,10 @@ public class MenuBar extends Widget implements PopupListener, HasAnimation,
 
       Roles.getMenubarRole().setAriaActivedescendantProperty(getElement(),
           Id.of(item.getElement()));
+    } else {
+      // Otherwise it would name an item that's no longer highlighted, or
+      // that clearItems() has removed
+      Roles.getMenubarRole().removeAriaActivedescendantProperty(getElement());
     }
 
     selectedItem = item;
