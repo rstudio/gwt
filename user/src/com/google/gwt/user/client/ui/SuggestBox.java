@@ -803,6 +803,8 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
   private SuggestOracle oracle;
   private String currentText;
   private int requestGeneration;
+  // Whether the latest request's response is still due
+  private boolean awaitingSuggestions;
   private LeafValueEditor<String> editor;
   private final SuggestionDisplay display;
   private final ValueBoxBase<String> box;
@@ -1260,9 +1262,11 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
     // Only the latest request's response may show, and only until the list
     // is dismissed or the box loses focus
     final int generation = ++requestGeneration;
+    awaitingSuggestions = true;
     Callback requestCallback = new Callback() {
       public void onSuggestionsReady(Request request, Response response) {
         if (generation == requestGeneration) {
+          awaitingSuggestions = false;
           callback.onSuggestionsReady(request, response);
         }
       }
@@ -1284,10 +1288,13 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
             // such as one dismissed with Escape. Other displays may not report
             // whether their list is showing, so they keep moving the highlight.
             if (display.managesComboboxState() && !isSuggestionListShowing()) {
-              showSuggestionList();
-              break;
+              // A response that's still due will open it
+              if (!awaitingSuggestions) {
+                showSuggestionList();
+              }
+            } else {
+              display.moveSelectionDown();
             }
-            display.moveSelectionDown();
             if (isSuggestionListShowing()) {
               event.preventDefault();
             }
@@ -1347,6 +1354,7 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
    */
   private void dropPendingSuggestions() {
     requestGeneration++;
+    awaitingSuggestions = false;
   }
 
   private void fireSuggestionEvent(Suggestion selectedSuggestion) {

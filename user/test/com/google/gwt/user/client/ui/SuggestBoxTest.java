@@ -689,6 +689,42 @@ public class SuggestBoxTest extends WidgetTestBase {
     assertNull(display.getCurrentSelection());
   }
 
+  public void testDownArrowWaitsForPendingSuggestions() {
+    TestOracle oracle = new TestOracle();
+    TestSuggestionDisplay display = new TestSuggestionDisplay();
+    SuggestBox box = createPendingBox(oracle, display);
+    SuggestOracle.Request pending = oracle.request;
+
+    box.getElement().dispatchEvent(createDownKeyDown());
+    assertSame("Down shouldn't repeat a request still waiting on the oracle",
+        pending, oracle.request);
+    respond(oracle, "one");
+    assertTrue(display.isSuggestionListShowing());
+  }
+
+  public void testDownArrowOpeningListPreventsDefault() {
+    TestSuggestionDisplay display = new TestSuggestionDisplay();
+    SuggestBox box = createDefaultsBox(display);
+    final boolean[] prevented = {false};
+    box.getValueBox().addKeyDownHandler(new KeyDownHandler() {
+      @Override
+      public void onKeyDown(KeyDownEvent event) {
+        prevented[0] = isDefaultPrevented(event.getNativeEvent());
+      }
+    });
+
+    // The oracle answers at once, so the list is open by the time the
+    // key's default action would run
+    box.getElement().dispatchEvent(createDownKeyDown());
+    assertTrue(display.isSuggestionListShowing());
+    assertTrue(prevented[0]);
+  }
+
+  private static NativeEvent createDownKeyDown() {
+    return Document.get().createKeyDownEvent(false, false, false, false,
+        KeyCodes.KEY_DOWN);
+  }
+
   public void testTabDropsPendingSuggestions() {
     TestOracle oracle = new TestOracle();
     TestSuggestionDisplay display = new TestSuggestionDisplay();
