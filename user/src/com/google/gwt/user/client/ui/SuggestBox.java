@@ -217,6 +217,15 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
     }
 
     /**
+     * Whether this display keeps the box's combobox state, such as
+     * aria-expanded, current as its list opens, changes and closes, and
+     * reports whether the list is showing. Intentionally not visible.
+     */
+    boolean managesComboboxState() {
+      return false;
+    }
+
+    /**
      * This is here for legacy reasons. It is intentionally not visible.
      *
      * @param enable true to enable animation
@@ -611,6 +620,11 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
     }
 
     @Override
+    boolean managesComboboxState() {
+      return true;
+    }
+
+    @Override
     void setAnimationEnabledImpl(boolean enable) {
       setAnimationEnabled(enable);
     }
@@ -858,10 +872,9 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
     this.display = suggestDisplay;
     initWidget(box);
 
-    // The combobox pattern. Only DefaultSuggestionDisplay keeps the box's
-    // expanded and highlight state current as its list opens, changes and
-    // closes; with another display the box would always read as collapsed.
-    if (suggestDisplay instanceof DefaultSuggestionDisplay) {
+    // The combobox pattern, for a display that keeps the box's state current;
+    // with another display the box would always read as collapsed.
+    if (suggestDisplay.managesComboboxState()) {
       ComboboxRole role = Roles.getComboboxRole();
       role.set(box.getElement());
       role.setAriaAutocompleteProperty(box.getElement(), AutocompleteValue.LIST);
@@ -1270,8 +1283,7 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
             // As in the combobox pattern, Down Arrow opens a closed list,
             // such as one dismissed with Escape. Other displays may not report
             // whether their list is showing, so they keep moving the highlight.
-            if (display instanceof DefaultSuggestionDisplay
-                && !isSuggestionListShowing()) {
+            if (display.managesComboboxState() && !isSuggestionListShowing()) {
               showSuggestionList();
               break;
             }
