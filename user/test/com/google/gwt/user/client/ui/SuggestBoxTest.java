@@ -26,6 +26,7 @@ import com.google.gwt.event.dom.client.KeyUpHandler;
 import com.google.gwt.user.client.ui.MultiWordSuggestOracle.MultiWordSuggestion;
 import com.google.gwt.user.client.ui.SuggestBox.DefaultSuggestionDisplay;
 import com.google.gwt.user.client.ui.SuggestBox.SuggestionCallback;
+import com.google.gwt.user.client.ui.SuggestBox.SuggestionDisplay;
 import com.google.gwt.user.client.ui.SuggestOracle.Response;
 import com.google.gwt.user.client.ui.SuggestOracle.Suggestion;
 
@@ -409,6 +410,37 @@ public class SuggestBoxTest extends WidgetTestBase {
         assertEquals("presentation", e.getAttribute("role"));
       }
     }
+  }
+
+  public void testCustomDisplayLeavesBoxPlain() {
+    SuggestionDisplay display = new SuggestionDisplay() {
+      @Override
+      protected Suggestion getCurrentSelection() {
+        return null;
+      }
+
+      @Override
+      protected void hideSuggestions() {
+      }
+
+      @Override
+      protected void moveSelectionDown() {
+      }
+
+      @Override
+      protected void moveSelectionUp() {
+      }
+
+      @Override
+      protected void showSuggestions(SuggestBox suggestBox,
+          Collection<? extends Suggestion> suggestions,
+          boolean isDisplayStringHTML, boolean isAutoSelectEnabled,
+          SuggestionCallback callback) {
+      }
+    };
+    SuggestBox box = new SuggestBox(createOracle(), new TextBox(), display);
+    assertEquals("", box.getElement().getAttribute("role"));
+    assertEquals("", box.getElement().getAttribute("aria-expanded"));
   }
 
   public void testActiveDescendantFollowsHighlight() {

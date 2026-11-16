@@ -849,12 +849,15 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
     this.display = suggestDisplay;
     initWidget(box);
 
-    // The combobox pattern; DefaultSuggestionDisplay keeps the box's expanded
-    // and highlight state current as its list opens, changes and closes.
-    ComboboxRole role = Roles.getComboboxRole();
-    role.set(box.getElement());
-    role.setAriaAutocompleteProperty(box.getElement(), AutocompleteValue.LIST);
-    role.setAriaExpandedState(box.getElement(), ExpandedValue.FALSE);
+    // The combobox pattern. Only DefaultSuggestionDisplay keeps the box's
+    // expanded and highlight state current as its list opens, changes and
+    // closes; with another display the box would always read as collapsed.
+    if (suggestDisplay instanceof DefaultSuggestionDisplay) {
+      ComboboxRole role = Roles.getComboboxRole();
+      role.set(box.getElement());
+      role.setAriaAutocompleteProperty(box.getElement(), AutocompleteValue.LIST);
+      role.setAriaExpandedState(box.getElement(), ExpandedValue.FALSE);
+    }
 
     addEventsToTextBox();
 
