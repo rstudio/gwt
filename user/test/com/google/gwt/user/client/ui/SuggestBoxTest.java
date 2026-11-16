@@ -402,6 +402,12 @@ public class SuggestBoxTest extends WidgetTestBase {
     for (MenuItem item : display.getSuggestionMenu().getItems()) {
       assertEquals("option", item.getElement().getAttribute("role"));
       assertEquals("false", item.getElement().getAttribute("aria-selected"));
+      // Chrome only treats the cell as an option inside the listbox if
+      // every element in between is explicitly presentational
+      for (Element e = item.getElement().getParentElement(); e != list;
+          e = e.getParentElement()) {
+        assertEquals("presentation", e.getAttribute("role"));
+      }
     }
   }
 
