@@ -620,8 +620,11 @@ public class MenuBarTest extends WidgetTestBase {
     assertEquals(item1, bar.getSelectedItem());
     bar.selectItem(item3);
     assertEquals(item3, bar.getSelectedItem());
+    assertEquals(item3.getElement().getId(),
+        bar.getElement().getAttribute("aria-activedescendant"));
     bar.selectItem(null);
     assertNull(bar.getSelectedItem());
+    assertEquals("", bar.getElement().getAttribute("aria-activedescendant"));
   }
 
   public void testTabKey() {

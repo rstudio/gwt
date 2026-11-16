@@ -456,6 +456,8 @@ public class SuggestBoxTest extends WidgetTestBase {
     display.moveSelectionDown();
     assertEquals(first.getId(), input.getAttribute("aria-activedescendant"));
     assertEquals("true", first.getAttribute("aria-selected"));
+    // Only the box, which has focus, names the highlighted item
+    assertEquals("", menu.getElement().getAttribute("aria-activedescendant"));
 
     display.moveSelectionDown();
     assertEquals(second.getId(), input.getAttribute("aria-activedescendant"));
@@ -469,7 +471,6 @@ public class SuggestBoxTest extends WidgetTestBase {
     // Leaving the item clears the highlight
     menu.itemOver(null, false);
     assertEquals("", input.getAttribute("aria-activedescendant"));
-    assertEquals("", menu.getElement().getAttribute("aria-activedescendant"));
   }
 
   public void testAutoSelectSetsActiveDescendant() {

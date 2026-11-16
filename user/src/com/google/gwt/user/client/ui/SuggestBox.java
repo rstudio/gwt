@@ -657,6 +657,8 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
     @Override
     public void selectItem(MenuItem item) {
       super.selectItem(item);
+      // MenuBar also sets it on the list, which never has focus
+      Roles.getListboxRole().removeAriaActivedescendantProperty(getElement());
       updateActiveDescendant();
     }
 
