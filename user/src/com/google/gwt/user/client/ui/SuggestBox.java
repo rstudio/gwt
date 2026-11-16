@@ -1258,6 +1258,12 @@ public class SuggestBox extends Composite implements HasText, HasFocus,
       public void onKeyDown(KeyDownEvent event) {
         switch (event.getNativeKeyCode()) {
           case KeyCodes.KEY_DOWN:
+            // As in the combobox pattern, Down Arrow opens a closed list,
+            // such as one dismissed with Escape
+            if (!isSuggestionListShowing()) {
+              showSuggestionList();
+              break;
+            }
             display.moveSelectionDown();
             if (isSuggestionListShowing()) {
               event.preventDefault();

@@ -643,6 +643,20 @@ public class SuggestBoxTest extends WidgetTestBase {
     assertEquals("two", display.getSuggestion(0).getReplacementString());
   }
 
+  public void testDownArrowOpensClosedList() {
+    TestSuggestionDisplay display = new TestSuggestionDisplay();
+    SuggestBox box = createDefaultsBox(display);
+    box.showSuggestionList();
+    box.getElement().dispatchEvent(createEscapeKeyDown());
+    assertFalse(display.isSuggestionListShowing());
+
+    box.getElement().dispatchEvent(Document.get().createKeyDownEvent(
+        false, false, false, false, KeyCodes.KEY_DOWN));
+    assertTrue(display.isSuggestionListShowing());
+    // Opening the list doesn't also move the highlight
+    assertNull(display.getCurrentSelection());
+  }
+
   public void testTabDropsPendingSuggestions() {
     TestOracle oracle = new TestOracle();
     TestSuggestionDisplay display = new TestSuggestionDisplay();
